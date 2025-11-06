@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>{% block title %}Biometric Authentication{% endblock %}</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+	<style>
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+
+		:root {
+			--primary: #6366f1;
+			--primary-dark: #4f46e5;
+			--success: #10b981;
+			--danger: #ef4444;
+			--warning: #f59e0b;
+			--gray-50: #f9fafb;
+			--gray-100: #f3f4f6;
+			--gray-200: #e5e7eb;
+			--gray-300: #d1d5db;
+			--gray-600: #4b5563;
+			--gray-700: #374151;
+			--gray-900: #111827;
+			--shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+			--shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+			--shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+		}
+
+		body {
+			font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			min-height: 100vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 20px;
+		}
+
+		.container {
+			background: white;
+			border-radius: 24px;
+			box-shadow: var(--shadow-lg);
+			width: 100%;
+			max-width: 500px;
+			padding: 40px;
+			animation: slideUp 0.5s ease-out;
+		}
+
+		@keyframes slideUp {
+			from {
+				opacity: 0;
+				transform: translateY(20px);
+			}
+
+			to {
+				opacity: 1;
+				transform: translateY(0);
+			}
+		}
+
+		.logo {
+			text-align: center;
+			margin-bottom: 32px;
+		}
+
+		.logo h1 {
+			font-size: 28px;
+			font-weight: 700;
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			background-clip: text;
+		}
+
+		.form-group {
+			margin-bottom: 24px;
+		}
+
+		label {
+			display: block;
+			font-size: 14px;
+			font-weight: 500;
+			color: var(--gray-700);
+			margin-bottom: 8px;
+		}
+
+		input[type="text"],
+		input[type="email"],
+		input[type="password"] {
+			width: 100%;
+			padding: 12px 16px;
+			border: 2px solid var(--gray-200);
+			border-radius: 12px;
+			font-size: 15px;
+			transition: all 0.2s;
+			background: var(--gray-50);
+		}
+
+		input:focus {
+			outline: none;
+			border-color: var(--primary);
+			background: white;
+			box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+		}
+
+		.biometric-section {
+			margin: 32px 0;
+			padding: 24px;
+			background: var(--gray-50);
+			border-radius: 16px;
+			border: 2px dashed var(--gray-200);
+		}
+
+		.biometric-section.active {
+			border-color: var(--primary);
+			background: rgba(99, 102, 241, 0.05);
+		}
+
+		.biometric-section.validated {
+			border-color: var(--success);
+			background: rgba(16, 185, 129, 0.05);
+		}
+
+		.biometric-header {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			margin-bottom: 16px;
+		}
+
+		.biometric-icon {
+			width: 40px;
+			height: 40px;
+			border-radius: 10px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 20px;
+			background: var(--gray-200);
+			color: var(--gray-600);
+		}
+
+		.biometric-section.active .biometric-icon {
+			background: var(--primary);
+			color: white;
+			animation: pulse 2s infinite;
+		}
+
+		.biometric-section.validated .biometric-icon {
+			background: var(--success);
+			color: white;
+		}
+
+		@keyframes pulse {
+
+			0%,
+			100% {
+				transform: scale(1);
+			}
+
+			50% {
+				transform: scale(1.05);
+			}
+		}
+
+		.biometric-title {
+			font-size: 16px;
+			font-weight: 600;
+			color: var(--gray-900);
+		}
+
+		.biometric-status {
+			font-size: 13px;
+			color: var(--gray-600);
+			margin-top: 8px;
+			display: flex;
+			align-items: center;
+			gap: 6px;
+		}
+
+		.biometric-status.valid {
+			color: var(--success);
+			font-weight: 500;
+		}
+
+		.status-icon {
+			font-size: 16px;
+		}
+
+		#video {
+			width: 100%;
+			border-radius: 12px;
+			margin: 16px 0;
+			border: 2px solid var(--gray-200);
+			background: var(--gray-900);
+		}
+
+		.btn {
+			width: 100%;
+			padding: 14px 24px;
+			border: none;
+			border-radius: 12px;
+			font-size: 15px;
+			font-weight: 600;
+			cursor: pointer;
+			transition: all 0.2s;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+		}
+
+		.btn-primary {
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			color: white;
+			box-shadow: var(--shadow);
+		}
+
+		.btn-primary:hover:not(:disabled) {
+			transform: translateY(-2px);
+			box-shadow: var(--shadow-lg);
+		}
+
+		.btn-primary:disabled {
+			opacity: 0.5;
+			cursor: not-allowed;
+			transform: none;
+		}
+
+		.btn-secondary {
+			background: var(--gray-100);
+			color: var(--gray-700);
+		}
+
+		.btn-secondary:hover {
+			background: var(--gray-200);
+		}
+
+		.btn-success {
+			background: var(--success);
+			color: white;
+		}
+
+		.btn-danger {
+			background: var(--danger);
+			color: white;
+		}
+
+		.btn-danger.recording {
+			animation: pulse 1s infinite;
+		}
+
+		.btn-group {
+			display: flex;
+			gap: 12px;
+			margin-top: 12px;
+		}
+
+		.messages {
+			margin-bottom: 24px;
+		}
+
+		.message {
+			padding: 12px 16px;
+			border-radius: 12px;
+			margin-bottom: 12px;
+			font-size: 14px;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.message.error {
+			background: rgba(239, 68, 68, 0.1);
+			color: var(--danger);
+			border: 1px solid rgba(239, 68, 68, 0.2);
+		}
+
+		.message.success {
+			background: rgba(16, 185, 129, 0.1);
+			color: var(--success);
+			border: 1px solid rgba(16, 185, 129, 0.2);
+		}
+
+		.link {
+			text-align: center;
+			margin-top: 24px;
+			font-size: 14px;
+			color: var(--gray-600);
+		}
+
+		.link a {
+			color: var(--primary);
+			text-decoration: none;
+			font-weight: 500;
+		}
+
+		.link a:hover {
+			text-decoration: underline;
+		}
+
+		.hidden {
+			display: none;
+		}
+
+		.progress-bar {
+			width: 100%;
+			height: 4px;
+			background: var(--gray-200);
+			border-radius: 2px;
+			overflow: hidden;
+			margin-top: 12px;
+		}
+
+		.progress-fill {
+			height: 100%;
+			background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+			width: 0%;
+			transition: width 0.3s;
+		}
+	</style>
+	{% block extra_css %}{% endblock %}
+</head>
+
+<body>
+	<div class="container">
+		<div class="logo">
+			<h1>🔐 Biometric Auth</h1>
+		</div>
+
+		{% if messages %}
+		<div class="messages">
+			{% for message in messages %}
+			<div class="message {{ message.tags }}">
+				<span class="status-icon">
+					{% if message.tags == 'error' %}⚠️{% else %}✓{% endif %}
+				</span>
+				{{ message }}
+			</div>
+			{% endfor %}
+		</div>
+		{% endif %}
+
+		{% block content %}{% endblock %}
+
+		{% block footer %}{% endblock %}
+	</div>
+	{% block extra_js %}{% endblock %}
+</body>
+
+</html>
