@@ -78,5 +78,5 @@ class BiometricValidator:
         if not facial_valid:
             return False, facial_msg
         
-        return True, "Biometric verification successful"
+        return True, "Verificación biométrica exitosa"
 

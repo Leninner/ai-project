@@ -75,14 +75,20 @@ def login_view(request):
 
 
 def dashboard_view(request):
-    if not request.user.is_authenticated:
+    user_id = request.session.get('user_id')
+    if not user_id:
         return redirect('login')
     
-    return render(request, 'authentication/dashboard.html', {'user': request.user})
+    from .models import User
+    try:
+        user = User.objects.get(id=user_id)
+        return render(request, 'authentication/dashboard.html', {'user': user})
+    except User.DoesNotExist:
+        request.session.flush()
+        return redirect('login')
 
 
 def logout_view(request):
-    from django.contrib.auth import logout
-    logout(request)
+    request.session.flush()
     return redirect('login')
 

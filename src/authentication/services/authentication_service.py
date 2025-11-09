@@ -1,6 +1,5 @@
 from typing import Tuple, Optional
 from django.core.files.uploadedfile import UploadedFile
-from django.contrib.auth import login as django_login
 from ..models import User
 from ..validators import BiometricValidator
 from .video_processor import VideoProcessor
@@ -45,7 +44,8 @@ class AuthenticationService:
                 logger.warning(f"Biometric validation failed for {username}: {error_message}")
                 return False, None, error_message
             
-            django_login(request, user)
+            request.session['user_id'] = user.id
+            request.session['username'] = user.username
             logger.info(f"User {username} authenticated successfully")
             return True, user, "Authentication successful"
         

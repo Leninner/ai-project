@@ -135,41 +135,28 @@
 
 {% block content %}
 <div class="dashboard-header">
-    <h1>🎉 Welcome Back!</h1>
-    <p class="welcome-message">Your biometric authentication dashboard</p>
+    <h1>🎉 Bienvenido de nuevo!</h1>
+    <p class="welcome-message">Tu panel de autenticación biométrica</p>
 </div>
 
 <div class="user-card">
     <h2>
         <span>👤</span>
-        {{ user.name }}
+        {{ user.username }}
     </h2>
     <div class="user-info">
         <div class="info-item">
-            <div class="info-label">Email</div>
-            <div class="info-value">{{ user.email }}</div>
+            <div class="info-label">Nombre de usuario</div>
+            <div class="info-value">{{ user.username }}</div>
         </div>
         <div class="info-item">
-            <div class="info-label">Member Since</div>
-            <div class="info-value">{{ user.date_joined|date:"M Y" }}</div>
+            <div class="info-label">Fecha de registro</div>
+            <div class="info-value">{{ user.created_at|date:"M Y" }}</div>
         </div>
-    </div>
-</div>
-
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-icon">🎤</div>
-        <div class="stat-label">Voice Samples</div>
-        <div class="stat-value">{{ user.voice_embeddings|length }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon">📷</div>
-        <div class="stat-label">Face Samples</div>
-        <div class="stat-value">{{ user.image_embeddings|length }}</div>
     </div>
 </div>
 
 <a href="{% url 'logout' %}" class="logout-btn">
-    <span>🚪</span> Logout
+    <span>🚪</span> Cerrar sesión
 </a>
 {% endblock %}

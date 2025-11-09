@@ -77,12 +77,7 @@ class RegistrationService:
                 logger.warning(f"Face validation failed for {username}: {validation_message}")
                 return False, None, validation_message
             
-            user = User.objects.create_user(
-                username=username,
-                password=None
-            )
-            user.set_unusable_password()
-            user.save()
+            user = User.objects.create(username=username)
             
             TrainingService.trigger_async_training()
             
