@@ -39,16 +39,16 @@ class FacialValidator(BaseValidator):
         try:
             identified_person, confidence = identify_face_from_image(image_path)
         except Exception as e:
-            return False, f"Face verification failed: Error processing image - {str(e)}", 0.0
+            return False, f"Error al procesar la imagen: {str(e)}", 0.0
         
         if identified_person == "unknown" or confidence < self.CONFIDENCE_THRESHOLD:
-            return False, f"Face verification failed: Person not recognized (confidence: {confidence:.2f})", confidence
+            return False, f"No se pudo reconocer la persona (confianza: {confidence:.2f})", confidence
         
         expected_normalized = self._normalize_name(expected_name)
         identified_normalized = self._normalize_name(identified_person)
         
         if expected_normalized != identified_normalized:
-            return False, f"Face verification failed: Expected {expected_name}, but identified as {identified_person} (confidence: {confidence:.2f}). Please verify the facial model was trained with the correct data.", confidence
+            return False, f"No se pudo reconocer la persona (confianza: {confidence:.2f}). Por favor, verifica que el modelo facial haya sido entrenado con los datos correctos.", confidence
         
         return True, identified_person, confidence
 

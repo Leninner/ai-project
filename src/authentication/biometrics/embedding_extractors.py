@@ -170,7 +170,7 @@ class FacialEmbeddingExtractor(EmbeddingExtractor):
         img_cropped = self._mtcnn(img)
         
         if img_cropped is None:
-            raise ValueError(f"No faces found in image {image_path}")
+            raise ValueError("No se detectó un rostro en la imagen. Por favor, asegúrate de que tu cara esté completamente visible y bien iluminada.")
         
         img_cropped = img_cropped.unsqueeze(0)
         with torch.no_grad():

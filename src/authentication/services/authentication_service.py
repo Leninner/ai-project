@@ -2,61 +2,57 @@ from typing import Tuple, Optional
 from django.core.files.uploadedfile import UploadedFile
 from django.contrib.auth import login as django_login
 from ..models import User
-from ..utils import extract_voice_embedding, extract_image_embedding
 from ..validators import BiometricValidator
+from .video_processor import VideoProcessor
 from .file_handler import FileHandler
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AuthenticationService:
     def __init__(self):
-        self.file_handler = FileHandler()
+        self.video_processor = VideoProcessor()
         self.biometric_validator = BiometricValidator()
+        self.file_handler = FileHandler()
     
     def authenticate(
         self,
-        email: str,
-        password: str,
-        voice_file: UploadedFile,
-        image_file: UploadedFile,
+        username: str,
+        video_file: UploadedFile,
         request
     ) -> Tuple[bool, Optional[User], str]:
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(username=username)
         except User.DoesNotExist:
             return False, None, "Invalid credentials"
         
-        if not user.check_password(password):
-            return False, None, "Invalid credentials"
-        
-        voice_temp_path = None
         image_temp_path = None
+        voice_temp_path = None
         
         try:
-            voice_temp_path = self.file_handler.save_voice_file(voice_file)
-            image_temp_path = self.file_handler.save_image_file(image_file)
+            image_temp_path, voice_temp_path = self.video_processor.process_authentication_video(
+                video_file
+            )
             
             is_valid, error_message = self.biometric_validator.validate_all(
                 voice_temp_path,
                 image_temp_path,
-                user.name
+                username
             )
             
             if not is_valid:
+                logger.warning(f"Biometric validation failed for {username}: {error_message}")
                 return False, None, error_message
             
-            current_voice_embedding = extract_voice_embedding(voice_temp_path)
-            current_image_embedding = extract_image_embedding(image_temp_path)
-            
-            user.voice_embeddings.append(current_voice_embedding)
-            user.image_embeddings.append(current_image_embedding)
-            user.save()
-            
             django_login(request, user)
+            logger.info(f"User {username} authenticated successfully")
             return True, user, "Authentication successful"
         
         except Exception as e:
+            logger.error(f"Authentication failed for {username}: {str(e)}")
             return False, None, f"Login failed: {str(e)}"
         
         finally:
-            self.file_handler.cleanup_files(voice_temp_path, image_temp_path)
+            self.file_handler.cleanup_files(image_temp_path, voice_temp_path)
 

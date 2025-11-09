@@ -1,134 +1,282 @@
 {% extends "authentication/base.html" %}
 
-{% block title %}Login - Biometric Authentication{% endblock %}
+{% block title %}Iniciar Sesión - Autenticación Biométrica{% endblock %}
+
+{% block extra_css %}
+<style>
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .toast {
+        min-width: 300px;
+        max-width: 500px;
+        padding: 16px 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        animation: slideIn 0.3s ease-out;
+        border-left: 4px solid;
+    }
+
+    .toast.error {
+        border-left-color: #e74c3c;
+    }
+
+    .toast.success {
+        border-left-color: #27ae60;
+    }
+
+    .toast.warning {
+        border-left-color: #f39c12;
+    }
+
+    .toast-icon {
+        font-size: 24px;
+        flex-shrink: 0;
+    }
+
+    .toast-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .toast-title {
+        font-weight: 600;
+        font-size: 14px;
+        color: #2c3e50;
+    }
+
+    .toast-message {
+        font-size: 13px;
+        color: #5a6c7d;
+        line-height: 1.4;
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        font-size: 20px;
+        color: #95a5a6;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: color 0.2s;
+    }
+
+    .toast-close:hover {
+        color: #2c3e50;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        to {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+    }
+
+    .toast.closing {
+        animation: slideOut 0.3s ease-out forwards;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
+<div class="toast-container" id="toastContainer"></div>
+
 <form method="post" enctype="multipart/form-data" id="loginForm">
     {% csrf_token %}
 
     <div class="form-group">
-        <label for="email">Email Address</label>
-        <input type="email" id="email" name="email" required placeholder="Enter your email">
-    </div>
-
-    <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required placeholder="Enter your password">
+        <label for="username">Nombre de usuario</label>
+        <input type="text" id="username" name="username" required placeholder="Ingresa tu nombre de usuario">
     </div>
 
     <div class="biometric-section" id="biometricSection">
         <div class="biometric-header">
-            <div class="biometric-icon">🔐</div>
+            <div class="biometric-icon">🎥</div>
             <div>
-                <div class="biometric-title">Biometric Authentication</div>
-                <div class="biometric-status" id="biometricStatus">Click to start biometric verification</div>
+                <div class="biometric-title">Autenticación por video (3 segundos)</div>
+                <div class="biometric-status" id="biometricStatus">
+                    Graba un video corto mostrando tu cara mientras hablas
+                </div>
+                <div id="validationFeedback" class="hidden"
+                    style="margin-top: 12px; padding: 12px; border-radius: 8px; background: #f8f9fa;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <span id="faceIndicator" style="font-size: 20px;">⚪</span>
+                        <span id="faceText" style="color: #6c757d;">Detectando rostro...</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="voiceIndicator" style="font-size: 20px;">⚪</span>
+                        <span id="voiceText" style="color: #6c757d;">Detectando voz...</span>
+                    </div>
+                </div>
+                <small style="color: var(--gray-600); font-size: 12px; margin-top: 8px; display: block;">
+                    📌 Mantén tu cara visible<br>
+                    🎤 Di: "Soy [tu nombre] y quiero iniciar sesión"
+                </small>
             </div>
         </div>
-        <button type="button" id="startBiometricBtn" class="btn btn-primary">
-            <span>🎥</span> Start Biometric Verification
+        <button type="button" id="startRecordingBtn" class="btn btn-primary">
+            <span>🎬</span> Iniciar grabación (3 seg)
         </button>
-        <video id="video" autoplay playsinline class="hidden"></video>
-        <div class="progress-bar hidden" id="facialProgress">
-            <div class="progress-fill" id="facialProgressFill"></div>
+        <video id="video" autoplay playsinline muted class="hidden"></video>
+        <div id="recordingTimer" class="hidden"
+            style="text-align: center; font-size: 24px; font-weight: bold; color: #e74c3c; margin: 16px 0;">
+            00:00
         </div>
-        <div class="progress-bar hidden" id="voiceProgress">
-            <div class="progress-fill" id="voiceProgressFill"></div>
-        </div>
-    </div>
-
-    <div class="biometric-section hidden" id="facialSection">
-        <div class="biometric-header">
-            <div class="biometric-icon">📷</div>
-            <div>
-                <div class="biometric-title">Facial Recognition</div>
-                <div class="biometric-status" id="facialStatus">Waiting...</div>
-            </div>
+        <div class="progress-bar hidden" id="recordingProgress">
+            <div class="progress-fill" id="recordingProgressFill"></div>
         </div>
     </div>
 
-    <div class="biometric-section hidden" id="voiceSection">
-        <div class="biometric-header">
-            <div class="biometric-icon">🎤</div>
-            <div>
-                <div class="biometric-title">Voice Recognition</div>
-                <div class="biometric-status" id="voiceStatus">Waiting...</div>
-            </div>
-        </div>
-    </div>
-
-    <input type="file" id="image" name="image" accept="image/*" class="hidden" required>
-    <input type="file" id="voice" name="voice" accept="audio/wav" class="hidden" required>
-    <canvas id="canvas" class="hidden"></canvas>
+    <input type="file" id="video" name="video" accept="video/*" class="hidden">
 
     <div id="loadingIndicator" class="hidden" style="text-align: center; padding: 20px;">
         <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
-        <div style="font-size: 16px; color: var(--gray-600);">Authenticating with biometric data...</div>
+        <div style="font-size: 16px; color: var(--gray-600);">Verificando datos biométricos...</div>
+        <small style="color: var(--gray-600); margin-top: 8px; display: block;">Esto puede tomar un momento</small>
     </div>
 </form>
 
 <div class="link">
-    Don't have an account? <a href="{% url 'register' %}">Register here</a>
+    ¿No tienes una cuenta? <a href="{% url 'register' %}">Regístrate aquí</a>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    const toastContainer = document.getElementById('toastContainer');
+
+    function showToast(message, type = 'error', title = null, duration = 5000) {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        const icons = {
+            error: '❌',
+            success: '✅',
+            warning: '⚠️'
+        };
+
+        const titles = {
+            error: title || 'Error',
+            success: title || 'Éxito',
+            warning: title || 'Advertencia'
+        };
+
+        toast.innerHTML = `
+            <span class="toast-icon">${icons[type]}</span>
+            <div class="toast-content">
+                <div class="toast-title">${titles[type]}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+            <button class="toast-close" aria-label="Cerrar">×</button>
+        `;
+
+        const closeBtn = toast.querySelector('.toast-close');
+        closeBtn.addEventListener('click', () => {
+            closeToast(toast);
+        });
+
+        toastContainer.appendChild(toast);
+
+        if (duration > 0) {
+            setTimeout(() => {
+                closeToast(toast);
+            }, duration);
+        }
+
+        return toast;
+    }
+
+    function closeToast(toast) {
+        toast.classList.add('closing');
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.parentElement.removeChild(toast);
+            }
+        }, 300);
+    }
+
     const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const startBiometricBtn = document.getElementById('startBiometricBtn');
+    const startRecordingBtn = document.getElementById('startRecordingBtn');
     const biometricStatus = document.getElementById('biometricStatus');
     const biometricSection = document.getElementById('biometricSection');
-    const facialStatus = document.getElementById('facialStatus');
-    const voiceStatus = document.getElementById('voiceStatus');
-    const facialSection = document.getElementById('facialSection');
-    const voiceSection = document.getElementById('voiceSection');
-    const imageInput = document.getElementById('image');
-    const voiceInput = document.getElementById('voice');
-    const facialProgress = document.getElementById('facialProgress');
-    const voiceProgress = document.getElementById('voiceProgress');
+    const videoInput = document.getElementById('video');
+    const recordingTimer = document.getElementById('recordingTimer');
+    const recordingProgress = document.getElementById('recordingProgress');
+    const recordingProgressFill = document.getElementById('recordingProgressFill');
+    const usernameInput = document.getElementById('username');
 
     let stream = null;
     let mediaRecorder = null;
-    let audioChunks = [];
-    let imageCaptured = false;
-    let voiceRecorded = false;
+    let recordedChunks = [];
     let recordingStartTime = null;
-    let faceDetectionInterval = null;
-    let autoCaptureAttempts = 0;
-    const MAX_AUTO_CAPTURE_ATTEMPTS = 30;
+    let timerInterval = null;
+    let validationInterval = null;
+    let audioContext = null;
+    let audioAnalyser = null;
+    let faceDetected = false;
+    let voiceDetected = false;
+    let faceDetectionCount = 0;
+    let voiceDetectionCount = 0;
     const RECORDING_DURATION = 3000;
+    const MIN_FACE_DETECTIONS = 5;
+    const MIN_VOICE_DETECTIONS = 3;
+    const AUDIO_THRESHOLD = 0.01;
 
-    function updateFacialStatus(status, isValid = false) {
-        facialStatus.textContent = status;
-        if (isValid) {
-            facialStatus.classList.add('valid');
-            facialSection.classList.remove('active');
-            facialSection.classList.add('validated');
+    function checkUsernameField() {
+        const username = usernameInput.value.trim();
+        if (username) {
+            startRecordingBtn.disabled = false;
         } else {
-            facialStatus.classList.remove('valid');
-            facialSection.classList.add('active');
-            facialSection.classList.remove('validated');
+            startRecordingBtn.disabled = true;
         }
     }
 
-    function updateVoiceStatus(status, isValid = false) {
-        voiceStatus.textContent = status;
-        if (isValid) {
-            voiceStatus.classList.add('valid');
-            voiceSection.classList.remove('active');
-            voiceSection.classList.add('validated');
-        } else {
-            voiceStatus.classList.remove('valid');
-            voiceSection.classList.add('active');
-            voiceSection.classList.remove('validated');
+    async function initializeCamera() {
+        const username = usernameInput.value.trim();
+        if (!username) {
+            alert('Por favor ingresa tu nombre de usuario primero');
+            return;
         }
-    }
 
-    async function initializeMedia() {
         try {
-            startBiometricBtn.disabled = true;
-            startBiometricBtn.innerHTML = '<span>⏳</span> Starting...';
-            biometricStatus.textContent = 'Requesting camera and microphone access...';
+            startRecordingBtn.disabled = true;
+            startRecordingBtn.innerHTML = '<span>⏳</span> Iniciando cámara...';
 
             stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -137,68 +285,188 @@
 
             video.srcObject = stream;
             video.classList.remove('hidden');
-            startBiometricBtn.classList.add('hidden');
-            biometricSection.classList.add('active');
-            facialSection.classList.remove('hidden');
-            voiceSection.classList.remove('hidden');
+            startRecordingBtn.classList.add('hidden');
+            document.getElementById('validationFeedback').classList.remove('hidden');
+            biometricStatus.textContent = 'Validando presencia...';
 
-            updateFacialStatus('Camera active - Positioning face...');
-            updateVoiceStatus('Microphone active - Starting recording...');
-            facialSection.classList.add('active');
-            voiceSection.classList.add('active');
+            await setupAudioAnalysis(stream);
 
-            facialProgress.classList.remove('hidden');
-            voiceProgress.classList.remove('hidden');
-            animateProgress('facialProgressFill', 100);
-            animateProgress('voiceProgressFill', 100);
+            await new Promise(resolve => {
+                const checkReady = setInterval(() => {
+                    if (video.readyState >= 2) {
+                        clearInterval(checkReady);
+                        resolve();
+                    }
+                }, 100);
+            });
 
-            startVoiceRecording();
-            startFaceDetection();
+            startValidation();
+
+            setTimeout(() => {
+                if (faceDetectionCount >= MIN_FACE_DETECTIONS && voiceDetectionCount >= MIN_VOICE_DETECTIONS) {
+                    startRecording();
+                } else {
+                    stopValidation();
+                    stream.getTracks().forEach(track => track.stop());
+                    video.classList.add('hidden');
+                    startRecordingBtn.classList.remove('hidden');
+                    document.getElementById('validationFeedback').classList.add('hidden');
+                    startRecordingBtn.disabled = false;
+                    startRecordingBtn.innerHTML = '<span>🎬</span> Iniciar grabación (3 seg)';
+
+                    let errorMsg = 'No se pudo validar tu presencia:\n';
+                    if (faceDetectionCount < MIN_FACE_DETECTIONS) errorMsg += '- Mantén tu rostro visible\n';
+                    if (voiceDetectionCount < MIN_VOICE_DETECTIONS) errorMsg += '- Habla claramente';
+                    alert(errorMsg);
+                }
+            }, 3000);
         } catch (err) {
-            biometricStatus.textContent = 'Error: ' + err.message;
-            updateFacialStatus('Error: ' + err.message);
-            updateVoiceStatus('Error: ' + err.message);
-            startBiometricBtn.disabled = false;
-            startBiometricBtn.innerHTML = '<span>🎥</span> Start Biometric Verification';
-            alert('Error accessing camera/microphone: ' + err.message);
+            alert('Error al acceder a la cámara o micrófono: ' + err.message);
+            startRecordingBtn.disabled = false;
+            startRecordingBtn.innerHTML = '<span>🎬</span> Iniciar grabación (3 seg)';
         }
     }
 
-    function startVoiceRecording() {
-        if (!stream) return;
+    async function setupAudioAnalysis(mediaStream) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(mediaStream);
+        audioAnalyser = audioContext.createAnalyser();
+        audioAnalyser.fftSize = 256;
+        source.connect(audioAnalyser);
+    }
 
-        audioChunks = [];
-        const audioStream = new MediaStream(stream.getAudioTracks());
-        mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
+    function detectVoice() {
+        if (!audioAnalyser) return false;
+
+        const bufferLength = audioAnalyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        audioAnalyser.getByteFrequencyData(dataArray);
+
+        const average = dataArray.reduce((a, b) => a + b) / bufferLength / 255;
+        return average > AUDIO_THRESHOLD;
+    }
+
+    function detectFace() {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        if (canvas.width === 0 || canvas.height === 0) return false;
+
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        let skinPixels = 0;
+        let totalPixels = data.length / 4;
+
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+
+            if (r > 95 && g > 40 && b > 20 &&
+                r > g && r > b &&
+                Math.abs(r - g) > 15) {
+                skinPixels++;
+            }
+        }
+
+        const skinPercentage = skinPixels / totalPixels;
+        return skinPercentage > 0.1;
+    }
+
+    function startValidation() {
+        faceDetectionCount = 0;
+        voiceDetectionCount = 0;
+
+        validationInterval = setInterval(() => {
+            const hasFace = detectFace();
+            const hasVoice = detectVoice();
+
+            if (hasFace) {
+                faceDetectionCount++;
+                faceDetected = true;
+                document.getElementById('faceIndicator').textContent = '✅';
+                document.getElementById('faceText').textContent = 'Rostro detectado';
+                document.getElementById('faceText').style.color = '#28a745';
+            } else {
+                document.getElementById('faceIndicator').textContent = '⚠️';
+                document.getElementById('faceText').textContent = 'Buscando rostro...';
+                document.getElementById('faceText').style.color = '#ffc107';
+            }
+
+            if (hasVoice) {
+                voiceDetectionCount++;
+                voiceDetected = true;
+                document.getElementById('voiceIndicator').textContent = '✅';
+                document.getElementById('voiceText').textContent = 'Voz detectada';
+                document.getElementById('voiceText').style.color = '#28a745';
+            } else {
+                document.getElementById('voiceIndicator').textContent = '⚠️';
+                document.getElementById('voiceText').textContent = 'Esperando voz...';
+                document.getElementById('voiceText').style.color = '#ffc107';
+            }
+        }, 200);
+    }
+
+    function stopValidation() {
+        if (validationInterval) {
+            clearInterval(validationInterval);
+            validationInterval = null;
+        }
+        if (audioContext) {
+            audioContext.close();
+            audioContext = null;
+        }
+    }
+
+    function startRecording() {
+        stopValidation();
+        document.getElementById('validationFeedback').classList.add('hidden');
+
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(stream, {
+            mimeType: 'video/webm;codecs=vp9,opus'
+        });
 
         mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
-                audioChunks.push(event.data);
+                recordedChunks.push(event.data);
             }
         };
 
         mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            updateVoiceStatus('Converting audio to WAV...', false);
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const file = new File([blob], 'authentication.webm', { type: 'video/webm' });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            videoInput.files = dataTransfer.files;
 
-            try {
-                const wavBlob = await convertWebmToWav(audioBlob);
-                const file = new File([wavBlob], 'recording.wav', { type: 'audio/wav' });
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-                voiceInput.files = dataTransfer.files;
-
-                voiceRecorded = true;
-                updateVoiceStatus('✓ Voice recorded successfully', true);
-                checkAndSubmit();
-            } catch (err) {
-                updateVoiceStatus('Error converting audio: ' + err.message, false);
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
             }
+            video.classList.add('hidden');
+            recordingTimer.classList.add('hidden');
+            recordingProgress.classList.add('hidden');
+
+            clearInterval(timerInterval);
+            biometricSection.classList.add('hidden');
+
+            await submitFormAutomatically();
         };
 
         recordingStartTime = Date.now();
         mediaRecorder.start();
-        updateVoiceStatus('Recording voice...');
+
+        recordingTimer.classList.remove('hidden');
+        recordingProgress.classList.remove('hidden');
+        biometricStatus.textContent = 'Grabando...';
+
+        updateTimer();
+        timerInterval = setInterval(updateTimer, 100);
 
         setTimeout(() => {
             if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -207,209 +475,95 @@
         }, RECORDING_DURATION);
     }
 
-    function startFaceDetection() {
-        if (!stream) return;
+    function updateTimer() {
+        const elapsed = Date.now() - recordingStartTime;
+        const seconds = Math.floor(elapsed / 1000);
+        const milliseconds = Math.floor((elapsed % 1000) / 100);
+        recordingTimer.textContent = `${String(seconds).padStart(2, '0')}:${milliseconds}`;
 
-        faceDetectionInterval = setInterval(() => {
-            if (video.readyState === video.HAVE_ENOUGH_DATA && !imageCaptured) {
-                autoCaptureAttempts++;
+        const progress = Math.min((elapsed / RECORDING_DURATION) * 100, 100);
+        recordingProgressFill.style.width = progress + '%';
 
-                if (autoCaptureAttempts >= MAX_AUTO_CAPTURE_ATTEMPTS) {
-                    captureFace();
-                } else if (autoCaptureAttempts >= 10) {
-                    updateFacialStatus('Face detected - Capturing in ' + (MAX_AUTO_CAPTURE_ATTEMPTS - autoCaptureAttempts) + '...');
-                    captureFace();
-                } else {
-                    updateFacialStatus('Detecting face... (' + autoCaptureAttempts + '/' + MAX_AUTO_CAPTURE_ATTEMPTS + ')');
-                }
-            }
-        }, 200);
+        biometricStatus.textContent = `Grabando... ${3 - seconds}s restantes`;
     }
 
-    function captureFace() {
-        if (imageCaptured) return;
+    async function submitFormAutomatically() {
+        const username = usernameInput.value.trim();
+        const videoFile = videoInput.files[0];
 
-        clearInterval(faceDetectionInterval);
+        if (!username || !videoFile) {
+            alert('Por favor completa todos los campos y graba un video');
+            return;
+        }
 
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0);
+        document.getElementById('loadingIndicator').classList.remove('hidden');
+        document.getElementById('loginForm').style.opacity = '0.5';
+        document.getElementById('loginForm').style.pointerEvents = 'none';
 
-        canvas.toBlob((blob) => {
-            const file = new File([blob], 'capture.jpg', { type: 'image/jpeg' });
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            imageInput.files = dataTransfer.files;
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('video', videoFile);
 
-            imageCaptured = true;
-            updateFacialStatus('✓ Face captured successfully', true);
-            checkAndSubmit();
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        formData.append('csrfmiddlewaretoken', csrfToken);
 
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-        }, 'image/jpeg', 0.95);
-    }
-
-    async function checkAndSubmit() {
-        if (imageCaptured && voiceRecorded) {
-            document.getElementById('loadingIndicator').classList.remove('hidden');
-            document.getElementById('loginForm').style.opacity = '0.5';
-            document.getElementById('loginForm').style.pointerEvents = 'none';
-
-            updateFacialStatus('Verifying biometric data...', false);
-            updateVoiceStatus('Verifying biometric data...', false);
-
-            const formData = new FormData(document.getElementById('loginForm'));
-
-            try {
-                const response = await fetch('{% url "login" %}', {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    redirect: 'follow'
-                });
-
-                if (response.ok && response.url.includes('dashboard')) {
-                    updateFacialStatus('✓ Biometric verification successful', true);
-                    updateVoiceStatus('✓ Biometric verification successful', true);
-
-                    setTimeout(() => {
-                        window.location.href = response.url;
-                    }, 500);
-                } else {
-                    const html = await response.text();
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-                    const errorMessages = doc.querySelectorAll('.message.error');
-
-                    if (errorMessages.length > 0) {
-                        const errorText = errorMessages[0].textContent.trim();
-                        updateFacialStatus('✗ ' + errorText, false);
-                        updateVoiceStatus('✗ ' + errorText, false);
-                    } else {
-                        updateFacialStatus('✗ Biometric verification failed', false);
-                        updateVoiceStatus('✗ Biometric verification failed', false);
-                    }
-
-                    document.getElementById('loadingIndicator').classList.add('hidden');
-                    document.getElementById('loginForm').style.opacity = '1';
-                    document.getElementById('loginForm').style.pointerEvents = 'auto';
-
-                    imageCaptured = false;
-                    voiceRecorded = false;
-
-                    if (stream) {
-                        stream.getTracks().forEach(track => track.stop());
-                        stream = null;
-                    }
-
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 3000);
+        try {
+            const response = await fetch('{% url "login" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
-            } catch (error) {
-                updateFacialStatus('✗ Error: ' + error.message, false);
-                updateVoiceStatus('✗ Error: ' + error.message, false);
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Autenticación exitosa. Redirigiendo...', 'success', 'Bienvenido', 2000);
+                setTimeout(() => {
+                    window.location.href = data.redirect;
+                }, 1000);
+            } else {
+                showToast(data.error || 'Autenticación fallida', 'error', 'Error de Autenticación');
 
                 document.getElementById('loadingIndicator').classList.add('hidden');
                 document.getElementById('loginForm').style.opacity = '1';
                 document.getElementById('loginForm').style.pointerEvents = 'auto';
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
             }
+        } catch (error) {
+            showToast('Error al procesar la solicitud: ' + error.message, 'error', 'Error del Sistema');
+
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            document.getElementById('loginForm').style.opacity = '1';
+            document.getElementById('loginForm').style.pointerEvents = 'auto';
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
         }
     }
 
-    function animateProgress(elementId, duration) {
-        const element = document.getElementById(elementId);
-        let start = 0;
-        const increment = 100 / (duration / 50);
-        const timer = setInterval(() => {
-            start += increment;
-            element.style.width = Math.min(start, 100) + '%';
-            if (start >= 100) {
-                clearInterval(timer);
-            }
-        }, 50);
-    }
+    usernameInput.addEventListener('input', checkUsernameField);
+    startRecordingBtn.addEventListener('click', initializeCamera);
 
-
-    function convertWebmToWav(webmBlob) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const arrayBuffer = e.target.result;
-                    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                    const wav = audioBufferToWav(audioBuffer);
-                    const wavBlob = new Blob([wav], { type: 'audio/wav' });
-                    resolve(wavBlob);
-                } catch (err) {
-                    reject(err);
-                }
-            };
-            reader.onerror = reject;
-            reader.readAsArrayBuffer(webmBlob);
-        });
-    }
-
-    function audioBufferToWav(buffer) {
-        const length = buffer.length;
-        const sampleRate = buffer.sampleRate;
-        const numberOfChannels = buffer.numberOfChannels;
-        const bytesPerSample = 2;
-        const blockAlign = numberOfChannels * bytesPerSample;
-        const byteRate = sampleRate * blockAlign;
-        const dataSize = length * blockAlign;
-        const bufferSize = 44 + dataSize;
-        const arrayBuffer = new ArrayBuffer(bufferSize);
-        const view = new DataView(arrayBuffer);
-
-        const writeString = (offset, string) => {
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
-        };
-
-        writeString(0, 'RIFF');
-        view.setUint32(4, bufferSize - 8, true);
-        writeString(8, 'WAVE');
-        writeString(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, numberOfChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, byteRate, true);
-        view.setUint16(32, blockAlign, true);
-        view.setUint16(34, bytesPerSample * 8, true);
-        writeString(36, 'data');
-        view.setUint32(40, dataSize, true);
-
-        let offset = 44;
-        for (let i = 0; i < length; i++) {
-            for (let channel = 0; channel < numberOfChannels; channel++) {
-                const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
-                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-                offset += 2;
-            }
-        }
-
-        return arrayBuffer;
-    }
-
-    startBiometricBtn.addEventListener('click', () => {
-        initializeMedia();
-    });
+    checkUsernameField();
 
     window.addEventListener('beforeunload', () => {
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
         }
-        if (faceDetectionInterval) {
-            clearInterval(faceDetectionInterval);
+        if (timerInterval) {
+            clearInterval(timerInterval);
+        }
+        if (validationInterval) {
+            clearInterval(validationInterval);
+        }
+        if (audioContext) {
+            audioContext.close();
         }
     });
 </script>

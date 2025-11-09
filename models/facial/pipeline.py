@@ -72,17 +72,6 @@ def extract_embeddings(data_dir):
                 continue
     return np.array(X), np.array(y)
 
-def build_reference_embeddings(X_train, y_train):
-    person_embeddings = defaultdict(list)
-    for emb, person in zip(X_train, y_train):
-        person_embeddings[person].append(emb)
-    
-    reference_embeddings = {}
-    for person, embeddings in person_embeddings.items():
-        reference_embeddings[person] = np.mean(embeddings, axis=0)
-    
-    return reference_embeddings
-
 def train_svm_classifier(X_train, y_train):
     CHECKPOINT_PATH.mkdir(parents=True, exist_ok=True)
     
@@ -207,4 +196,8 @@ if __name__ == "__main__":
                     horizontalalignment="center",
                     color="white" if cm[i, j] > thresh else "black")
     plt.tight_layout()
-    plt.show()
+    
+    confusion_matrix_path = Path(__file__).parent / "confusion_matrix_facial.png"
+    plt.savefig(confusion_matrix_path, dpi=150, bbox_inches='tight')
+    print(f"\nMatriz de confusión guardada en: {confusion_matrix_path}")
+    plt.close()
