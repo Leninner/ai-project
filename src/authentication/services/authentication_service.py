@@ -24,7 +24,7 @@ class AuthenticationService:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            return False, None, "Invalid credentials"
+            return False, None, "Usuario no encontrado"
         
         image_temp_path = None
         voice_temp_path = None
@@ -47,11 +47,11 @@ class AuthenticationService:
             request.session['user_id'] = user.id
             request.session['username'] = user.username
             logger.info(f"User {username} authenticated successfully")
-            return True, user, "Authentication successful"
+            return True, user, "Autenticación exitosa"
         
         except Exception as e:
             logger.error(f"Authentication failed for {username}: {str(e)}")
-            return False, None, f"Login failed: {str(e)}"
+            return False, None, f"Error al autenticar: {str(e)}"
         
         finally:
             self.file_handler.cleanup_files(image_temp_path, voice_temp_path)

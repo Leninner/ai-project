@@ -2,9 +2,10 @@ import cv2
 import os
 import tempfile
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 import subprocess
 import numpy as np
+from PIL import Image
 
 
 class VideoProcessor:
@@ -19,6 +20,42 @@ class VideoProcessor:
     def __init__(self):
         self.FACIAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
         self.VOICE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        self._mtcnn = None
+    
+    def _get_mtcnn(self):
+        if self._mtcnn is None:
+            try:
+                from facenet_pytorch import MTCNN
+                self._mtcnn = MTCNN(image_size=160, margin=0, min_face_size=20)
+            except ImportError:
+                raise ValueError("FaceNet not available. Please install facenet-pytorch")
+        return self._mtcnn
+    
+    def _extract_face_from_frame(self, frame: np.ndarray) -> Optional[np.ndarray]:
+        mtcnn = self._get_mtcnn()
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_pil = Image.fromarray(frame_rgb)
+        
+        boxes, probs = mtcnn.detect(frame_pil)
+        
+        if boxes is None or len(boxes) == 0:
+            return None
+        
+        best_box_idx = np.argmax(probs)
+        box = boxes[best_box_idx]
+        
+        x1, y1, x2, y2 = box.astype(int)
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(frame.shape[1], x2)
+        y2 = min(frame.shape[0], y2)
+        
+        face_crop = frame[y1:y2, x1:x2]
+        
+        if face_crop.size == 0:
+            return None
+        
+        return face_crop
     
     def extract_frames_and_audio(
         self, 
@@ -86,19 +123,33 @@ class VideoProcessor:
             frame_paths = []
             saved_count = start_index
             frames_to_extract = self.REQUIRED_FRAMES
+            frames_attempted = 0
+            max_attempts = total_frames
             
-            for i in range(frames_to_extract):
+            i = 0
+            while len(frame_paths) < frames_to_extract and frames_attempted < max_attempts:
                 frame_index = i * frame_interval
+                if frame_index >= total_frames:
+                    frame_index = frames_attempted % total_frames
+                
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
                 
                 ret, frame = cap.read()
                 if not ret:
-                    break
+                    frames_attempted += 1
+                    i += 1
+                    continue
                 
-                saved_count += 1
-                frame_path = output_dir / f"{saved_count}.png"
-                cv2.imwrite(str(frame_path), frame)
-                frame_paths.append(str(frame_path))
+                face_crop = self._extract_face_from_frame(frame)
+                
+                if face_crop is not None:
+                    saved_count += 1
+                    frame_path = output_dir / f"{saved_count}.png"
+                    cv2.imwrite(str(frame_path), face_crop)
+                    frame_paths.append(str(frame_path))
+                
+                frames_attempted += 1
+                i += 1
             
             cap.release()
             
@@ -247,7 +298,12 @@ class VideoProcessor:
             if not ret:
                 raise ValueError("No se pudo extraer el frame del video")
             
-            cv2.imwrite(temp_frame.name, frame)
+            face_crop = self._extract_face_from_frame(frame)
+            
+            if face_crop is None:
+                raise ValueError("No se detectó un rostro en el video. Por favor, asegúrate de que tu cara esté completamente visible y bien iluminada.")
+            
+            cv2.imwrite(temp_frame.name, face_crop)
             
             result = subprocess.run([
                 'ffmpeg', '-i', temp_video.name,
