@@ -1,20 +1,18 @@
 import os
 import numpy as np
-import argparse
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
 import joblib
 import matplotlib.pyplot as plt
-from collections import defaultdict
 from pathlib import Path
 from PIL import Image
 import torch
 from facenet_pytorch import MTCNN, InceptionResnetV1
 
-DATA_DIR = "data"
-CHECKPOINT_PATH = Path(__file__).parent / "checkpoints"
+DATA_DIR = Path(__file__).parent.parent / "data"
+CHECKPOINT_PATH = Path(__file__).parent.parent / "checkpoints"
 SVM_MODEL_PATH = CHECKPOINT_PATH / "svm_classifier.joblib"
 LABEL_ENCODER_PATH = CHECKPOINT_PATH / "label_encoder.joblib"
 CONFIDENCE_THRESHOLD = 0.6
@@ -70,63 +68,63 @@ def extract_embeddings(data_dir):
                 continue
     return np.array(X), np.array(y)
 
-def identify_face(query_embedding, classifier_type: str = "svm"):
-    try:
-        from .classifiers.classifier_strategy import create_classifier_strategy, FaceIdentifier
-    except ImportError:
-        import sys
-        from pathlib import Path
-        facial_path = Path(__file__).parent
-        if str(facial_path) not in sys.path:
-            sys.path.insert(0, str(facial_path))
-        from classifiers.classifier_strategy import create_classifier_strategy, FaceIdentifier
+def train_svm_classifier(X_train, y_train):
+    CHECKPOINT_PATH.mkdir(parents=True, exist_ok=True)
     
-    strategy = create_classifier_strategy(classifier_type)
-    face_identifier = FaceIdentifier(strategy)
-    return face_identifier.identify_face(query_embedding)
+    label_encoder = LabelEncoder()
+    y_encoded = label_encoder.fit_transform(y_train)
+    
+    svm_classifier = SVC(kernel='rbf', probability=True, random_state=42)
+    svm_classifier.fit(X_train, y_encoded)
+    
+    joblib.dump(svm_classifier, SVM_MODEL_PATH)
+    joblib.dump(label_encoder, LABEL_ENCODER_PATH)
+    
+    return svm_classifier, label_encoder
+
+def load_svm_classifier():
+    global _svm_classifier, _label_encoder
+    
+    if _svm_classifier is None or _label_encoder is None:
+        if SVM_MODEL_PATH.exists() and LABEL_ENCODER_PATH.exists():
+            _svm_classifier = joblib.load(SVM_MODEL_PATH)
+            _label_encoder = joblib.load(LABEL_ENCODER_PATH)
+        else:
+            raise ValueError("SVM classifier not trained. Please train the model first.")
+    
+    return _svm_classifier, _label_encoder
+
+def identify_face(query_embedding):
+    svm_classifier, label_encoder = load_svm_classifier()
+    
+    query_embedding_reshaped = query_embedding.reshape(1, -1)
+    probabilities = svm_classifier.predict_proba(query_embedding_reshaped)[0]
+    predicted_class = svm_classifier.predict(query_embedding_reshaped)[0]
+    
+    confidence = np.max(probabilities)
+    
+    if confidence < CONFIDENCE_THRESHOLD:
+        return "unknown", float(confidence)
+    
+    identified_person = label_encoder.inverse_transform([predicted_class])[0]
+    return identified_person, float(confidence)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Train and evaluate facial recognition classifier')
-    parser.add_argument(
-        '--classifier', '-c',
-        type=str,
-        choices=['svm', 'nn'],
-        default='svm',
-        help='Classifier type to use: svm (Support Vector Machine) or nn (Neural Network). Default: svm'
-    )
-    args = parser.parse_args()
-    
-    classifier_type = args.classifier
-    classifier_name = "SVM" if classifier_type == "svm" else "Neural Network"
-    
     print("Extrayendo embeddings faciales...")
     X, y = extract_embeddings(DATA_DIR)
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
-    try:
-        from .classifiers.classifier_strategy import create_classifier_strategy, FaceIdentifier
-    except ImportError:
-        import sys
-        from pathlib import Path
-        facial_path = Path(__file__).parent
-        if str(facial_path) not in sys.path:
-            sys.path.insert(0, str(facial_path))
-        from classifiers.classifier_strategy import create_classifier_strategy, FaceIdentifier
-    
-    strategy = create_classifier_strategy(classifier_type)
-    face_identifier = FaceIdentifier(strategy)
-    
-    print(f"Entrenando clasificador {classifier_name}...")
-    face_identifier.train(X_train, y_train)
-    print(f"Modelo {classifier_name} entrenado y guardado")
+    print("Entrenando clasificador SVM...")
+    svm_classifier, label_encoder = train_svm_classifier(X_train, y_train)
+    print(f"Modelo SVM entrenado y guardado en {SVM_MODEL_PATH}")
 
     print("Identificando personas en conjunto de prueba...")
     y_pred = []
     confidences = []
 
     for query_emb in X_test:
-        identified, confidence = face_identifier.identify_face(query_emb)
+        identified, confidence = identify_face(query_emb)
         y_pred.append(identified)
         confidences.append(confidence)
 
@@ -135,7 +133,7 @@ if __name__ == "__main__":
     unknown_mask = y_pred == "unknown"
     known_mask = ~unknown_mask
     
-    print(f"\n--- Resultados de clasificación {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD}) ---")
+    print(f"\n--- Resultados de clasificación SVM (Umbral: {CONFIDENCE_THRESHOLD}) ---")
     print(f"Personas conocidas identificadas: {np.sum(known_mask)}/{len(y_test)}")
     print(f"Personas etiquetadas como desconocidas: {np.sum(unknown_mask)}/{len(y_test)}")
     
@@ -161,8 +159,8 @@ if __name__ == "__main__":
     all_labels = np.unique(np.concatenate([y_test, y_pred]))
     cm = confusion_matrix(y_test, y_pred, labels=all_labels)
     plt.figure(figsize=(12, 10))
-    plt.imshow(cm, interpolation='nearest', cmap='Blues' if classifier_type == 'svm' else 'Greens')
-    plt.title(f"Matriz de confusión - FaceNet + {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD})")
+    plt.imshow(cm, interpolation='nearest', cmap='Blues')
+    plt.title(f"Matriz de confusión - FaceNet + SVM (Umbral: {CONFIDENCE_THRESHOLD})")
     plt.colorbar()
     tick_marks = np.arange(len(all_labels))
     plt.xticks(tick_marks, all_labels, rotation=45, ha='right')
@@ -177,8 +175,8 @@ if __name__ == "__main__":
                     color="white" if cm[i, j] > thresh else "black")
     plt.tight_layout()
     
-    confusion_matrix_filename = f"confusion_matrix_facial_{classifier_type}.png"
-    confusion_matrix_path = Path(__file__).parent / confusion_matrix_filename
+    confusion_matrix_path = Path(__file__).parent.parent / "confusion_matrix_svm.png"
     plt.savefig(confusion_matrix_path, dpi=150, bbox_inches='tight')
     print(f"\nMatriz de confusión guardada en: {confusion_matrix_path}")
     plt.close()
+

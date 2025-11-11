@@ -65,7 +65,18 @@ sudo apt-get install ffmpeg
 uv sync
 ```
 
-### 4. Configurar Base de Datos
+### 4. Configurar Variables de Entorno
+```bash
+# Crear archivo .env desde el template
+cp .env.example .env
+
+# Editar .env con tus configuraciones
+# Configuración de clasificadores:
+# FACIAL_CLASSIFIER_TYPE=svm  # o 'nn' para Neural Network
+# VOICE_CLASSIFIER_TYPE=svm   # o 'nn' para Neural Network
+```
+
+### 5. Configurar Base de Datos
 ```bash
 # Crear base de datos PostgreSQL
 createdb facial_recognition
@@ -75,14 +86,14 @@ cd src
 python manage.py migrate
 ```
 
-### 5. Entrenar Modelos Iniciales (Opcional)
+### 6. Entrenar Modelos Iniciales (Opcional)
 Si tienes datos de entrenamiento existentes:
 ```bash
 make train-facial
 make train-voice
 ```
 
-### 6. Iniciar Servidor
+### 7. Iniciar Servidor
 ```bash
 python src/manage.py runserver
 ```
@@ -183,6 +194,34 @@ facial-recognition/
 ```
 
 ## 🔧 Configuración
+
+### Variables de Entorno (.env)
+
+El proyecto utiliza un archivo `.env` para configuración. Crea un archivo `.env` en la raíz del proyecto:
+
+```bash
+# Django Settings
+SECRET_KEY=your-secret-key-here
+DEBUG=True
+
+# Database Configuration
+DB_NAME=auth_platform
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_HOST=localhost
+DB_PORT=5432
+
+# Biometric Classifier Configuration
+# Options: 'svm' or 'nn'
+FACIAL_CLASSIFIER_TYPE=svm
+VOICE_CLASSIFIER_TYPE=svm
+```
+
+**Clasificadores disponibles:**
+- `svm`: Support Vector Machine (más rápido, menor precisión)
+- `nn`: Neural Network (más lento, mayor precisión)
+
+Los clasificadores se pueden cambiar en cualquier momento actualizando las variables de entorno y reiniciando la aplicación.
 
 ### Parámetros de VideoProcessor
 Ubicación: `src/authentication/services/video_processor.py`

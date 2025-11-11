@@ -11,7 +11,7 @@ from PIL import Image
 class VideoProcessor:
     FACIAL_DATA_DIR = Path(__file__).parent.parent.parent.parent / "models" / "facial" / "data"
     VOICE_DATA_DIR = Path(__file__).parent.parent.parent.parent / "models" / "voice" / "data"
-    REQUIRED_FRAMES = 40
+    REQUIRED_FRAMES = 100
     AUDIO_SEGMENT_DURATION = 3
     MIN_AUDIO_SEGMENTS = 10
     MAX_AUDIO_SEGMENTS = 15
@@ -289,16 +289,37 @@ class VideoProcessor:
                 raise ValueError("No se pudo abrir el archivo de video")
             
             frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            middle_frame = max(0, frame_count // 2)
             
-            cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
-            ret, frame = cap.read()
+            if frame_count == 0:
+                cap.release()
+                raise ValueError("El video no contiene frames")
+            
+            face_crop = None
+            max_attempts = min(20, frame_count)
+            frame_indices = [
+                int(frame_count * 0.25),
+                int(frame_count * 0.5),
+                int(frame_count * 0.75),
+            ]
+            
+            for i in range(max_attempts):
+                if i < len(frame_indices):
+                    frame_index = frame_indices[i]
+                else:
+                    frame_index = int((i / max_attempts) * frame_count)
+                
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+                ret, frame = cap.read()
+                
+                if not ret:
+                    continue
+                
+                face_crop = self._extract_face_from_frame(frame)
+                
+                if face_crop is not None:
+                    break
+            
             cap.release()
-            
-            if not ret:
-                raise ValueError("No se pudo extraer el frame del video")
-            
-            face_crop = self._extract_face_from_frame(frame)
             
             if face_crop is None:
                 raise ValueError("No se detectó un rostro en el video. Por favor, asegúrate de que tu cara esté completamente visible y bien iluminada.")

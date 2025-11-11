@@ -23,11 +23,17 @@ prepare-data:
 	rm models/facial/data.zip
 	rm models/voice/data.zip
 
-train-voice:
+train-voice-svm:
 	cd models/voice && uv run python pipeline.py
 
-train-facial:
+train-facial-svm:
 	cd models/facial && uv run python pipeline.py
+
+train-voice-nn:
+	cd models/voice && uv run python pipeline.py -c nn
+
+train-facial-nn:
+	cd models/facial && uv run python pipeline.py -c nn
 
 db-up:
 	docker compose up -d

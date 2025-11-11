@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Optional
 import logging
 
+from ..biometrics.config import BiometricConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,27 +22,30 @@ class TrainingService:
             return cls._is_training
     
     @classmethod
-    def trigger_async_training(cls) -> None:
+    def trigger_async_training(cls, facial_classifier_type: Optional[str] = None, voice_classifier_type: Optional[str] = None) -> None:
         if cls.is_training():
             logger.warning("Training already in progress, skipping new training request")
             return
         
-        thread = threading.Thread(target=cls._train_models, daemon=True)
+        facial_type = facial_classifier_type or BiometricConfig.FACIAL_CLASSIFIER_TYPE
+        voice_type = voice_classifier_type or BiometricConfig.VOICE_CLASSIFIER_TYPE
+        
+        thread = threading.Thread(target=cls._train_models, args=(facial_type, voice_type), daemon=True)
         thread.start()
     
     @classmethod
-    def _train_models(cls) -> None:
+    def _train_models(cls, facial_classifier_type: str, voice_classifier_type: str) -> None:
         with cls._training_lock:
             if cls._is_training:
                 return
             cls._is_training = True
         
         try:
-            logger.info("Starting facial recognition model training...")
-            cls._train_facial_model()
+            logger.info(f"Starting facial recognition model training with {facial_classifier_type.upper()} classifier...")
+            cls._train_facial_model(facial_classifier_type)
             
-            logger.info("Starting voice recognition model training...")
-            cls._train_voice_model()
+            logger.info(f"Starting voice recognition model training with {voice_classifier_type.upper()} classifier...")
+            cls._train_voice_model(voice_classifier_type)
             
             logger.info("Model training completed successfully")
         
@@ -52,12 +57,17 @@ class TrainingService:
                 cls._is_training = False
     
     @classmethod
-    def _train_facial_model(cls) -> None:
+    def _train_facial_model(cls, classifier_type: str = None) -> None:
         if not cls.FACIAL_PIPELINE.exists():
             raise FileNotFoundError(f"Facial pipeline not found: {cls.FACIAL_PIPELINE}")
         
+        classifier_type = classifier_type or BiometricConfig.FACIAL_CLASSIFIER_TYPE
+        
+        if classifier_type not in ['svm', 'nn']:
+            raise ValueError(f"Invalid classifier type: {classifier_type}. Must be 'svm' or 'nn'")
+        
         result = subprocess.run(
-            ['python', str(cls.FACIAL_PIPELINE)],
+            ['python', str(cls.FACIAL_PIPELINE), '--classifier', classifier_type],
             cwd=cls.FACIAL_PIPELINE.parent,
             capture_output=True,
             text=True,
@@ -71,12 +81,17 @@ class TrainingService:
         logger.info(f"Facial training output: {result.stdout}")
     
     @classmethod
-    def _train_voice_model(cls) -> None:
+    def _train_voice_model(cls, classifier_type: str = None) -> None:
         if not cls.VOICE_PIPELINE.exists():
             raise FileNotFoundError(f"Voice pipeline not found: {cls.VOICE_PIPELINE}")
         
+        classifier_type = classifier_type or BiometricConfig.VOICE_CLASSIFIER_TYPE
+        
+        if classifier_type not in ['svm', 'nn']:
+            raise ValueError(f"Invalid classifier type: {classifier_type}. Must be 'svm' or 'nn'")
+        
         result = subprocess.run(
-            ['python', str(cls.VOICE_PIPELINE)],
+            ['python', str(cls.VOICE_PIPELINE), '--classifier', classifier_type],
             cwd=cls.VOICE_PIPELINE.parent,
             capture_output=True,
             text=True,

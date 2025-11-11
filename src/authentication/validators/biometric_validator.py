@@ -2,6 +2,7 @@ import logging
 from typing import Tuple
 from .base_validator import BaseValidator
 from ..utils import identify_speaker_from_audio, identify_face_from_image
+from ..biometrics.config import BiometricConfig
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,8 @@ class VoiceValidator(BaseValidator):
         return name.lower().strip().replace('_', '').replace('-', '').replace(' ', '')
     
     def validate(self, audio_path: str, expected_name: str) -> Tuple[bool, str, float]:
-        logger.info(f"Starting voice validation for expected user: {expected_name}")
+        classifier_type = BiometricConfig.VOICE_CLASSIFIER_TYPE.upper()
+        logger.info(f"Starting voice validation for expected user: {expected_name} (using {classifier_type} classifier)")
         logger.debug(f"Audio path: {audio_path}")
 
         try:
@@ -48,7 +50,8 @@ class FacialValidator(BaseValidator):
         return name.lower().strip().replace('_', '').replace('-', '').replace(' ', '')
     
     def validate(self, image_path: str, expected_name: str) -> Tuple[bool, str, float]:
-        logger.info(f"Starting facial validation for expected user: {expected_name}")
+        classifier_type = BiometricConfig.FACIAL_CLASSIFIER_TYPE.upper()
+        logger.info(f"Starting facial validation for expected user: {expected_name} (using {classifier_type} classifier)")
         logger.debug(f"Image path: {image_path}")
 
         try:

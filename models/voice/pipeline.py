@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import argparse
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.svm import SVC
@@ -37,9 +38,6 @@ def get_encoder():
         _encoder = EncoderClassifier.from_hparams(source=MODEL)
     return _encoder
 
-def cosine_similarity(a, b):
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
 def extract_embedding(audio_path):
     encoder = get_encoder()
     audio_data, sample_rate = sf.read(audio_path)
@@ -64,81 +62,35 @@ def extract_embeddings(data_dir):
             y.append(speaker)
     return np.array(X), np.array(y)
 
-def train_svm_classifier(X_train, y_train):
-    CHECKPOINT_PATH.mkdir(parents=True, exist_ok=True)
-    
-    label_encoder = LabelEncoder()
-    y_encoded = label_encoder.fit_transform(y_train)
-    
-    svm_classifier = SVC(kernel='rbf', probability=True, random_state=42)
-    svm_classifier.fit(X_train, y_encoded)
-    
-    joblib.dump(svm_classifier, SVM_MODEL_PATH)
-    joblib.dump(label_encoder, LABEL_ENCODER_PATH)
-    
-    return svm_classifier, label_encoder
-
-def load_svm_classifier():
-    global _svm_classifier, _label_encoder
-    
-    if _svm_classifier is None or _label_encoder is None:
-        if SVM_MODEL_PATH.exists() and LABEL_ENCODER_PATH.exists():
-            _svm_classifier = joblib.load(SVM_MODEL_PATH)
-            _label_encoder = joblib.load(LABEL_ENCODER_PATH)
-        else:
-            raise ValueError("SVM classifier not trained. Please train the model first.")
-    
-    return _svm_classifier, _label_encoder
-
-def identify_speaker(query_embedding, reference_embeddings=None):
+def identify_speaker(query_embedding, classifier_type: str = "svm"):
     try:
-        svm_classifier, label_encoder = load_svm_classifier()
-    except ValueError:
-        if reference_embeddings is None:
-            return "unknown", 0.0
-        
-        best_similarity = -1.0
-        identified_speaker = None
-        
-        for speaker, ref_emb in reference_embeddings.items():
-            similarity = cosine_similarity(query_embedding, ref_emb)
-            if similarity > best_similarity:
-                best_similarity = similarity
-                identified_speaker = speaker
-        
-        if best_similarity < CONFIDENCE_THRESHOLD:
-            return "unknown", best_similarity
-        
-        return identified_speaker, best_similarity
+        from .classifiers.classifier_strategy import create_classifier_strategy, VoiceIdentifier
+    except ImportError:
+        import sys
+        from pathlib import Path
+        voice_path = Path(__file__).parent
+        if str(voice_path) not in sys.path:
+            sys.path.insert(0, str(voice_path))
+        from classifiers.classifier_strategy import create_classifier_strategy, VoiceIdentifier
     
-    query_embedding_reshaped = query_embedding.reshape(1, -1)
-    probabilities = svm_classifier.predict_proba(query_embedding_reshaped)[0]
-    predicted_class = svm_classifier.predict(query_embedding_reshaped)[0]
-    
-    confidence = np.max(probabilities)
-    
-    if confidence < CONFIDENCE_THRESHOLD:
-        return "unknown", float(confidence)
-    
-    identified_speaker = label_encoder.inverse_transform([predicted_class])[0]
-    return identified_speaker, float(confidence)
-
-def identify_speaker_legacy(query_embedding, reference_embeddings):
-    best_similarity = -1.0
-    identified_speaker = None
-    
-    for speaker, ref_emb in reference_embeddings.items():
-        similarity = cosine_similarity(query_embedding, ref_emb)
-        if similarity > best_similarity:
-            best_similarity = similarity
-            identified_speaker = speaker
-    
-    if best_similarity < CONFIDENCE_THRESHOLD:
-        return "unknown", best_similarity
-    
-    return identified_speaker, best_similarity
+    strategy = create_classifier_strategy(classifier_type)
+    voice_identifier = VoiceIdentifier(strategy)
+    return voice_identifier.identify_speaker(query_embedding)
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Train and evaluate voice recognition classifier')
+    parser.add_argument(
+        '--classifier', '-c',
+        type=str,
+        choices=['svm', 'nn'],
+        default='svm',
+        help='Classifier type to use: svm (Support Vector Machine) or nn (Neural Network). Default: svm'
+    )
+    args = parser.parse_args()
+    
+    classifier_type = args.classifier
+    classifier_name = "SVM" if classifier_type == "svm" else "Neural Network"
+    
     print("Cargando modelo de SpeechBrain...")
     get_encoder()
     
@@ -147,16 +99,29 @@ if __name__ == "__main__":
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
-    print("Entrenando clasificador SVM...")
-    svm_classifier, label_encoder = train_svm_classifier(X_train, y_train)
-    print(f"Modelo SVM entrenado y guardado en {SVM_MODEL_PATH}")
+    try:
+        from .classifiers.classifier_strategy import create_classifier_strategy, VoiceIdentifier
+    except ImportError:
+        import sys
+        from pathlib import Path
+        voice_path = Path(__file__).parent
+        if str(voice_path) not in sys.path:
+            sys.path.insert(0, str(voice_path))
+        from classifiers.classifier_strategy import create_classifier_strategy, VoiceIdentifier
+    
+    strategy = create_classifier_strategy(classifier_type)
+    voice_identifier = VoiceIdentifier(strategy)
+    
+    print(f"Entrenando clasificador {classifier_name}...")
+    voice_identifier.train(X_train, y_train)
+    print(f"Modelo {classifier_name} entrenado y guardado")
 
     print("Identificando hablantes en conjunto de prueba...")
     y_pred = []
     confidences = []
 
     for query_emb in X_test:
-        identified, confidence = identify_speaker(query_emb)
+        identified, confidence = voice_identifier.identify_speaker(query_emb)
         y_pred.append(identified)
         confidences.append(confidence)
 
@@ -165,7 +130,7 @@ if __name__ == "__main__":
     unknown_mask = y_pred == "unknown"
     known_mask = ~unknown_mask
     
-    print(f"\n--- Resultados de clasificación (Umbral: {CONFIDENCE_THRESHOLD}) ---")
+    print(f"\n--- Resultados de clasificación {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD}) ---")
     print(f"Usuarios conocidos identificados: {np.sum(known_mask)}/{len(y_test)}")
     print(f"Usuarios etiquetados como desconocidos: {np.sum(unknown_mask)}/{len(y_test)}")
     
@@ -191,8 +156,8 @@ if __name__ == "__main__":
     all_labels = np.unique(np.concatenate([y_test, y_pred]))
     cm = confusion_matrix(y_test, y_pred, labels=all_labels)
     plt.figure(figsize=(12, 10))
-    plt.imshow(cm, interpolation='nearest', cmap='Blues')
-    plt.title(f"Matriz de confusión - SpeechBrain + SVM (Umbral: {CONFIDENCE_THRESHOLD})")
+    plt.imshow(cm, interpolation='nearest', cmap='Blues' if classifier_type == 'svm' else 'Greens')
+    plt.title(f"Matriz de confusión - SpeechBrain + {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD})")
     plt.colorbar()
     tick_marks = np.arange(len(all_labels))
     plt.xticks(tick_marks, all_labels, rotation=45, ha='right')
@@ -207,7 +172,8 @@ if __name__ == "__main__":
                     color="white" if cm[i, j] > thresh else "black")
     plt.tight_layout()
     
-    confusion_matrix_path = Path(__file__).parent / "confusion_matrix_voice.png"
+    confusion_matrix_filename = f"confusion_matrix_voice_{classifier_type}.png"
+    confusion_matrix_path = Path(__file__).parent / confusion_matrix_filename
     plt.savefig(confusion_matrix_path, dpi=150, bbox_inches='tight')
     print(f"\nMatriz de confusión guardada en: {confusion_matrix_path}")
     plt.close()

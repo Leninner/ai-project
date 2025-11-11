@@ -3,37 +3,48 @@ from .biometrics import (
     FacialEmbeddingExtractor,
     VoiceIdentifier,
     FacialIdentifier,
-    SimilarityCalculator,
 )
+from .biometrics.config import BiometricConfig
 
 _voice_extractor = VoiceEmbeddingExtractor()
 _facial_extractor = FacialEmbeddingExtractor()
-_voice_identifier = VoiceIdentifier()
-_facial_identifier = FacialIdentifier()
-_similarity_calc = SimilarityCalculator()
+_voice_identifier = None
+_facial_identifier = None
 
+def _get_voice_identifier():
+    global _voice_identifier
+    if _voice_identifier is None:
+        _voice_identifier = VoiceIdentifier()
+    return _voice_identifier
 
-def extract_voice_embedding(audio_path: str):
-    return _voice_extractor.extract(audio_path)
+def _get_facial_identifier():
+    global _facial_identifier
+    if _facial_identifier is None:
+        _facial_identifier = FacialIdentifier()
+    return _facial_identifier
 
-
-def extract_image_embedding(image_path: str):
-    return _facial_extractor.extract(image_path)
-
-
-def cosine_similarity(a, b):
-    return _similarity_calc.cosine_similarity(a, b)
-
-
-def calculate_mean_embedding(embeddings_list):
-    result = _similarity_calc.calculate_mean_embedding(embeddings_list)
-    return result if result else None
-
+def _reset_identifiers():
+    global _voice_identifier, _facial_identifier
+    _voice_identifier = None
+    _facial_identifier = None
 
 def identify_speaker_from_audio(audio_path: str):
-    return _voice_identifier.identify(audio_path)
-
+    identifier = _get_voice_identifier()
+    current_classifier_type = BiometricConfig.VOICE_CLASSIFIER_TYPE
+    
+    if identifier.model_loader.classifier_type != current_classifier_type:
+        _reset_identifiers()
+        identifier = _get_voice_identifier()
+    
+    return identifier.identify(audio_path)
 
 def identify_face_from_image(image_path: str):
-    return _facial_identifier.identify(image_path)
+    identifier = _get_facial_identifier()
+    current_classifier_type = BiometricConfig.FACIAL_CLASSIFIER_TYPE
+    
+    if identifier.model_loader.classifier_type != current_classifier_type:
+        _reset_identifiers()
+        identifier = _get_facial_identifier()
+    
+    return identifier.identify(image_path)
 

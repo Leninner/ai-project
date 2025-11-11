@@ -20,7 +20,7 @@ class RegistrationService:
         if not frame_paths:
             return False, "No se extrajeron frames del video"
         
-        validation_sample_size = min(5, len(frame_paths))
+        validation_sample_size = min(20, len(frame_paths))
         step = max(1, len(frame_paths) // validation_sample_size)
         sample_frames = [frame_paths[i] for i in range(0, len(frame_paths), step)][:validation_sample_size]
         

@@ -13,3 +13,5 @@ wheels/
 # Models
 models/*/checkpoints/*
 models/*/data/*
+
+.env

@@ -1,5 +1,6 @@
 from typing import Tuple
 import numpy as np
+import torch
 
 from .config import BiometricConfig
 from .model_loaders import VoiceModelLoader, FacialModelLoader
@@ -13,19 +14,39 @@ class BaseIdentifier:
         self.confidence_threshold = confidence_threshold
     
     def _predict(self, embedding: np.ndarray) -> Tuple[str, float]:
-        svm_classifier, label_encoder = self.model_loader.load()
+        model, label_encoder = self.model_loader.load()
+        classifier_type = self.model_loader.classifier_type
         
-        query_embedding_reshaped = embedding.reshape(1, -1)
-        probabilities = svm_classifier.predict_proba(query_embedding_reshaped)[0]
-        predicted_class = svm_classifier.predict(query_embedding_reshaped)[0]
-        
-        confidence = np.max(probabilities)
-        
-        if confidence < self.confidence_threshold:
-            return "unknown", float(confidence)
-        
-        identified = label_encoder.inverse_transform([predicted_class])[0]
-        return identified, float(confidence)
+        if classifier_type == 'svm':
+            query_embedding_reshaped = embedding.reshape(1, -1)
+            probabilities = model.predict_proba(query_embedding_reshaped)[0]
+            predicted_class = model.predict(query_embedding_reshaped)[0]
+            confidence = np.max(probabilities)
+            
+            if confidence < self.confidence_threshold:
+                return "unknown", float(confidence)
+            
+            identified = label_encoder.inverse_transform([predicted_class])[0]
+            return identified, float(confidence)
+        else:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            model = model.to(device)
+            
+            query_embedding_tensor = torch.FloatTensor(embedding).unsqueeze(0).to(device)
+            
+            with torch.no_grad():
+                logits = model(query_embedding_tensor)
+                probabilities = torch.softmax(logits, dim=1)
+                confidence_score, predicted_index = torch.max(probabilities, 1)
+            
+            confidence_value = confidence_score.item()
+            predicted_class_index = predicted_index.item()
+            
+            if confidence_value < self.confidence_threshold:
+                return "unknown", float(confidence_value)
+            
+            identified = label_encoder.inverse_transform([predicted_class_index])[0]
+            return identified, float(confidence_value)
 
 
 class VoiceIdentifier(BaseIdentifier):
