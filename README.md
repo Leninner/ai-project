@@ -206,7 +206,7 @@ El sistema implementa dos tipos de clasificadores intercambiables mediante el pa
 3. Selección de clase con mayor probabilidad
 4. Comparación con umbral de confianza:
    - Facial: `CONFIDENCE_THRESHOLD = 0.75`
-   - Voz: `CONFIDENCE_THRESHOLD = 0.3`
+   - Voz: `CONFIDENCE_THRESHOLD = 0.75`
 5. Retorno de identidad o "unknown" si confianza < umbral
 
 **Estructura de datos**:
@@ -649,7 +649,7 @@ Ubicación: `src/authentication/biometrics/config.py`
 
 ```python
 FACIAL_CONFIDENCE_THRESHOLD = 0.75  # Umbral para reconocimiento facial
-VOICE_CONFIDENCE_THRESHOLD = 0.3     # Umbral para reconocimiento de voz
+VOICE_CONFIDENCE_THRESHOLD = 0.75     # Umbral para reconocimiento de voz
 ```
 
 #### 7.2.3 Parámetros de Entrenamiento Neural Network

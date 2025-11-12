@@ -15,7 +15,7 @@ class BiometricConfig:
     VOICE_SVM_LABEL_ENCODER_PATH = VOICE_CHECKPOINTS_DIR / 'label_encoder.joblib'
     VOICE_NN_MODEL_PATH = VOICE_CHECKPOINTS_DIR / 'nn_classifier.pth'
     VOICE_NN_LABEL_ENCODER_PATH = VOICE_CHECKPOINTS_DIR / 'nn_label_encoder.joblib'
-    VOICE_CONFIDENCE_THRESHOLD = 0.3
+    VOICE_CONFIDENCE_THRESHOLD = 0.75
     VOICE_ENCODER_MODEL = "speechbrain/spkrec-ecapa-voxceleb"
     VOICE_CLASSIFIER_TYPE = os.getenv('VOICE_CLASSIFIER_TYPE', 'svm').lower()
     
