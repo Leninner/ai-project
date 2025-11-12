@@ -1,20 +1,16 @@
-from abc import ABC, abstractmethod
-from typing import List, Union
+import os
+import tempfile
+import warnings
+from typing import List
 import numpy as np
 import torch
-import warnings
-from PIL import Image
 
-from .config import BiometricConfig
+from .base import EmbeddingExtractor
+from ..config import BiometricConfig
+from ..audio_processor import AudioProcessor
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
-
-
-class EmbeddingExtractor(ABC):
-    @abstractmethod
-    def extract(self, file_path: str) -> Union[List[float], np.ndarray]:
-        pass
 
 
 class VoiceEmbeddingExtractor(EmbeddingExtractor):
@@ -33,8 +29,6 @@ class VoiceEmbeddingExtractor(EmbeddingExtractor):
                 raise ValueError("Voice encoder not available. Please install speechbrain.")
     
     def extract(self, audio_path: str) -> List[float]:
-        import os
-        import tempfile
         if self._encoder is None:
             raise ValueError("Voice encoder not initialized")
         
@@ -54,24 +48,8 @@ class VoiceEmbeddingExtractor(EmbeddingExtractor):
         
         if is_webm:
             try:
-                import subprocess
-                result = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True)
-                if result.returncode == 0:
-                    converted_path = tempfile.NamedTemporaryFile(delete=False, suffix='.wav').name
-                    conv_result = subprocess.run(
-                        ['ffmpeg', '-i', audio_path, '-ac', '1', '-ar', '16000', '-f', 'wav', '-y', converted_path],
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    if conv_result.returncode == 0:
-                        audio_path = converted_path
-                    else:
-                        error_messages.append(f"ffmpeg conversion failed: {conv_result.stderr[:200]}")
-                else:
-                    error_messages.append("ffmpeg not found - will try librosa directly")
-            except subprocess.TimeoutExpired:
-                error_messages.append("ffmpeg conversion timed out")
+                converted_path = AudioProcessor.convert_webm_to_wav(audio_path)
+                audio_path = converted_path
             except Exception as e:
                 error_messages.append(f"ffmpeg conversion error: {str(e)}")
         
@@ -142,40 +120,4 @@ class VoiceEmbeddingExtractor(EmbeddingExtractor):
         embedding = emb.squeeze().detach().numpy()
         
         return embedding.tolist() if hasattr(embedding, 'tolist') else embedding
-
-
-class FacialEmbeddingExtractor(EmbeddingExtractor):
-    def __init__(self):
-        self._mtcnn = None
-        self._resnet = None
-        self._load_models()
-    
-    def _load_models(self) -> None:
-        try:
-            from facenet_pytorch import MTCNN, InceptionResnetV1
-        except ImportError:
-            raise ValueError("FaceNet not available. Please install facenet-pytorch")
-        
-        if self._mtcnn is None:
-            self._mtcnn = MTCNN(image_size=160, margin=0, min_face_size=20)
-        
-        if self._resnet is None:
-            self._resnet = InceptionResnetV1(pretrained='vggface2').eval()
-    
-    def extract(self, image_path: str) -> List[float]:
-        if self._mtcnn is None or self._resnet is None:
-            raise ValueError("Facial models not initialized")
-        
-        img = Image.open(image_path).convert('RGB')
-        img_cropped = self._mtcnn(img)
-        
-        if img_cropped is None:
-            raise ValueError("No se detectó un rostro en la imagen. Por favor, asegúrate de que tu cara esté completamente visible y bien iluminada.")
-        
-        img_cropped = img_cropped.unsqueeze(0)
-        with torch.no_grad():
-            embedding = self._resnet(img_cropped)
-        
-        embedding_numpy = embedding.squeeze().numpy()
-        return embedding_numpy.tolist() if hasattr(embedding_numpy, 'tolist') else embedding_numpy
 

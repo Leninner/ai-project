@@ -3,9 +3,9 @@ from django.core.files.uploadedfile import UploadedFile
 from pathlib import Path
 import shutil
 from ..models import User
-from .video_processor import VideoProcessor
+from .video import VideoProcessor
 from .training_service import TrainingService
-from ..biometrics.embedding_extractors import FacialEmbeddingExtractor
+from .biometric_media_processor import BiometricMediaProcessor
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class RegistrationService:
     def __init__(self):
         self.video_processor = VideoProcessor()
-        self.facial_extractor = FacialEmbeddingExtractor()
+        self.media_processor = BiometricMediaProcessor()
     
     def _validate_frames_contain_faces(self, frame_paths: List[str]) -> Tuple[bool, str]:
         if not frame_paths:
@@ -24,19 +24,14 @@ class RegistrationService:
         step = max(1, len(frame_paths) // validation_sample_size)
         sample_frames = [frame_paths[i] for i in range(0, len(frame_paths), step)][:validation_sample_size]
         
-        failed_frames = []
-        for frame_path in sample_frames:
-            try:
-                self.facial_extractor.extract(frame_path)
-            except ValueError as e:
-                failed_frames.append((frame_path, str(e)))
-                logger.warning(f"Face validation failed for frame {frame_path}: {str(e)}")
+        embeddings = self.media_processor.extract_facial_embeddings_from_frames(sample_frames)
         
-        if failed_frames:
+        if len(embeddings) < len(sample_frames) * 0.8:
             error_msg = "No se detectaron rostros en algunas imágenes del video. Por favor, asegúrate de que tu cara esté completamente visible, bien iluminada y mirando hacia la cámara durante toda la grabación."
+            logger.warning(f"Face validation failed: only {len(embeddings)}/{len(sample_frames)} frames had valid faces")
             return False, error_msg
         
-        logger.info(f"Face validation passed for {len(sample_frames)} sample frames")
+        logger.info(f"Face validation passed for {len(embeddings)}/{len(sample_frames)} sample frames")
         return True, "Validation successful"
     
     def _cleanup_user_data(self, username: str) -> None:
@@ -57,7 +52,7 @@ class RegistrationService:
         video_file: UploadedFile
     ) -> Tuple[bool, Optional[User], str]:
         if User.objects.filter(username=username).exists():
-            return False, None, "Username already registered"
+            return False, None, "El nombre de usuario ya está registrado"
         
         try:
             frame_count, audio_count = self.video_processor.process_registration_video(
@@ -81,7 +76,7 @@ class RegistrationService:
             
             TrainingService.trigger_async_training()
             
-            return True, user, f"Registration successful. Extracted {frame_count} facial samples and {audio_count} voice samples."
+            return True, user, f"Registro exitoso. Extracción de {frame_count} muestras faciales y {audio_count} muestras de voz."
         
         except Exception as e:
             self._cleanup_user_data(username)

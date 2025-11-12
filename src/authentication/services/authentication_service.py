@@ -2,7 +2,7 @@ from typing import Tuple, Optional
 from django.core.files.uploadedfile import UploadedFile
 from ..models import User
 from ..validators import BiometricValidator
-from .video_processor import VideoProcessor
+from .video import VideoProcessor
 from .file_handler import FileHandler
 import logging
 

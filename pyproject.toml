@@ -20,4 +20,5 @@ dependencies = [
     "torchaudio>=2.1.0",
     "huggingface-hub>=0.16.0,<0.20.0",
     "opencv-python>=4.8.0",
+    "noisereduce>=3.0.0",
 ]
