@@ -7,6 +7,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR.parent / '.env')
 
+speechbrain_logger = logging.getLogger("speechbrain")
+speechbrain_logger.setLevel(logging.CRITICAL)
+speechbrain_logger.disabled = True
+
+for module in ["speechbrain.utils.fetching", "speechbrain.utils.parameter_transfer", "speechbrain.dataio.encoder", "speechbrain.utils.checkpoints"]:
+    logger = logging.getLogger(module)
+    logger.disabled = True
+
 
 class SkipFaviconFilter(logging.Filter):
     def filter(self, record):
@@ -149,6 +157,31 @@ LOGGING = {
         'authentication': {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'speechbrain': {
+            'handlers': [],
+            'level': 'CRITICAL',
+            'propagate': False,
+        },
+        'speechbrain.utils.fetching': {
+            'handlers': [],
+            'level': 'CRITICAL',
+            'propagate': False,
+        },
+        'speechbrain.utils.parameter_transfer': {
+            'handlers': [],
+            'level': 'CRITICAL',
+            'propagate': False,
+        },
+        'speechbrain.dataio.encoder': {
+            'handlers': [],
+            'level': 'CRITICAL',
+            'propagate': False,
+        },
+        'speechbrain.utils.checkpoints': {
+            'handlers': [],
+            'level': 'CRITICAL',
             'propagate': False,
         },
     },

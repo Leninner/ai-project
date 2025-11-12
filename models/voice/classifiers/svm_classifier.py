@@ -68,12 +68,18 @@ def train_svm_classifier(embeddings_train, labels_train):
     
     label_encoder = LabelEncoder()
     encoded_labels = label_encoder.fit_transform(labels_train)
+    num_classes = len(label_encoder.classes_)
+    
+    print(f"Entrenando clasificador SVM...")
+    print(f"Clases: {num_classes}, Muestras: {len(embeddings_train)}")
     
     svm_classifier = SVC(kernel='rbf', probability=True, random_state=42)
     svm_classifier.fit(embeddings_train, encoded_labels)
     
     joblib.dump(svm_classifier, SVM_MODEL_PATH)
     joblib.dump(label_encoder, LABEL_ENCODER_PATH)
+    
+    print(f"Modelo SVM entrenado y guardado en {SVM_MODEL_PATH}")
     
     return svm_classifier, label_encoder
 
@@ -105,19 +111,10 @@ def identify_speaker(query_embedding):
     return identified_speaker, float(confidence)
 
 if __name__ == "__main__":
-    print("Cargando modelo de SpeechBrain...")
     get_encoder()
-    
-    print("Extrayendo embeddings de voz...")
     embeddings, labels = extract_embeddings(DATA_DIR)
-
     embeddings_train, embeddings_test, labels_train, labels_test = train_test_split(embeddings, labels, test_size=0.3, random_state=42)
-
-    print("Entrenando clasificador SVM...")
     svm_classifier, label_encoder = train_svm_classifier(embeddings_train, labels_train)
-    print(f"Modelo SVM entrenado y guardado en {SVM_MODEL_PATH}")
-
-    print("Identificando hablantes en conjunto de prueba...")
     predictions = []
     confidence_scores = []
 
@@ -127,33 +124,8 @@ if __name__ == "__main__":
         confidence_scores.append(confidence)
 
     predictions = np.array(predictions)
-    
     unknown_mask = predictions == "unknown"
     known_mask = ~unknown_mask
-    
-    print(f"\n--- Resultados de clasificación SVM (Umbral: {CONFIDENCE_THRESHOLD}) ---")
-    print(f"Usuarios conocidos identificados: {np.sum(known_mask)}/{len(labels_test)}")
-    print(f"Usuarios etiquetados como desconocidos: {np.sum(unknown_mask)}/{len(labels_test)}")
-    
-    if np.sum(known_mask) > 0:
-        labels_test_known = labels_test[known_mask]
-        predictions_known = predictions[known_mask]
-        
-        accuracy_known = accuracy_score(labels_test_known, predictions_known)
-        print(f"\n--- Precisión en usuarios conocidos: {accuracy_known:.4f} ---")
-        
-        unique_speakers = np.unique(np.concatenate([labels_test_known, predictions_known]))
-        print("\n--- Reporte de clasificación (usuarios conocidos) ---")
-        print(classification_report(labels_test_known, predictions_known, labels=unique_speakers, target_names=unique_speakers))
-
-    confidence_scores = np.array(confidence_scores)
-    print(f"\n--- Estadísticas de confianza ---")
-    print(f"Confianza promedio: {np.mean(confidence_scores):.4f}")
-    print(f"Confianza mínima: {np.min(confidence_scores):.4f}")
-    print(f"Confianza máxima: {np.max(confidence_scores):.4f}")
-    print(f"Confianza promedio (conocidos): {np.mean(confidence_scores[known_mask]):.4f}" if np.sum(known_mask) > 0 else "")
-    print(f"Confianza promedio (desconocidos): {np.mean(confidence_scores[unknown_mask]):.4f}" if np.sum(unknown_mask) > 0 else "")
-
     all_labels = np.unique(np.concatenate([labels_test, predictions]))
     confusion_matrix_data = confusion_matrix(labels_test, predictions, labels=all_labels)
     plt.figure(figsize=(12, 10))
@@ -172,9 +144,7 @@ if __name__ == "__main__":
                     horizontalalignment="center",
                     color="white" if confusion_matrix_data[row_idx, col_idx] > threshold_value else "black")
     plt.tight_layout()
-    
     confusion_matrix_path = Path(__file__).parent.parent / "confusion_matrix_svm_voice.png"
     plt.savefig(confusion_matrix_path, dpi=150, bbox_inches='tight')
-    print(f"\nMatriz de confusión guardada en: {confusion_matrix_path}")
     plt.close()
 

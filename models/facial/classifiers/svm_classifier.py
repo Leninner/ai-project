@@ -73,12 +73,18 @@ def train_svm_classifier(X_train, y_train):
     
     label_encoder = LabelEncoder()
     y_encoded = label_encoder.fit_transform(y_train)
+    num_classes = len(label_encoder.classes_)
+    
+    print(f"Entrenando clasificador SVM...")
+    print(f"Clases: {num_classes}, Muestras: {len(X_train)}")
     
     svm_classifier = SVC(kernel='rbf', probability=True, random_state=42)
     svm_classifier.fit(X_train, y_encoded)
     
     joblib.dump(svm_classifier, SVM_MODEL_PATH)
     joblib.dump(label_encoder, LABEL_ENCODER_PATH)
+    
+    print(f"Modelo SVM entrenado y guardado en {SVM_MODEL_PATH}")
     
     return svm_classifier, label_encoder
 
@@ -108,75 +114,4 @@ def identify_face(query_embedding):
     
     identified_person = label_encoder.inverse_transform([predicted_class])[0]
     return identified_person, float(confidence)
-
-if __name__ == "__main__":
-    print("Extrayendo embeddings faciales...")
-    X, y = extract_embeddings(DATA_DIR)
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-
-    print("Entrenando clasificador SVM...")
-    svm_classifier, label_encoder = train_svm_classifier(X_train, y_train)
-    print(f"Modelo SVM entrenado y guardado en {SVM_MODEL_PATH}")
-
-    print("Identificando personas en conjunto de prueba...")
-    y_pred = []
-    confidences = []
-
-    for query_emb in X_test:
-        identified, confidence = identify_face(query_emb)
-        y_pred.append(identified)
-        confidences.append(confidence)
-
-    y_pred = np.array(y_pred)
-    
-    unknown_mask = y_pred == "unknown"
-    known_mask = ~unknown_mask
-    
-    print(f"\n--- Resultados de clasificación SVM (Umbral: {CONFIDENCE_THRESHOLD}) ---")
-    print(f"Personas conocidas identificadas: {np.sum(known_mask)}/{len(y_test)}")
-    print(f"Personas etiquetadas como desconocidas: {np.sum(unknown_mask)}/{len(y_test)}")
-    
-    if np.sum(known_mask) > 0:
-        y_test_known = y_test[known_mask]
-        y_pred_known = y_pred[known_mask]
-        
-        accuracy_known = accuracy_score(y_test_known, y_pred_known)
-        print(f"\n--- Precisión en personas conocidas: {accuracy_known:.4f} ---")
-        
-        unique_persons = np.unique(np.concatenate([y_test_known, y_pred_known]))
-        print("\n--- Reporte de clasificación (personas conocidas) ---")
-        print(classification_report(y_test_known, y_pred_known, labels=unique_persons, target_names=unique_persons))
-
-    confidences = np.array(confidences)
-    print(f"\n--- Estadísticas de confianza ---")
-    print(f"Confianza promedio: {np.mean(confidences):.4f}")
-    print(f"Confianza mínima: {np.min(confidences):.4f}")
-    print(f"Confianza máxima: {np.max(confidences):.4f}")
-    print(f"Confianza promedio (conocidas): {np.mean(confidences[known_mask]):.4f}" if np.sum(known_mask) > 0 else "")
-    print(f"Confianza promedio (desconocidas): {np.mean(confidences[unknown_mask]):.4f}" if np.sum(unknown_mask) > 0 else "")
-
-    all_labels = np.unique(np.concatenate([y_test, y_pred]))
-    cm = confusion_matrix(y_test, y_pred, labels=all_labels)
-    plt.figure(figsize=(12, 10))
-    plt.imshow(cm, interpolation='nearest', cmap='Blues')
-    plt.title(f"Matriz de confusión - FaceNet + SVM (Umbral: {CONFIDENCE_THRESHOLD})")
-    plt.colorbar()
-    tick_marks = np.arange(len(all_labels))
-    plt.xticks(tick_marks, all_labels, rotation=45, ha='right')
-    plt.yticks(tick_marks, all_labels)
-    plt.ylabel("Persona real")
-    plt.xlabel("Persona identificada")
-    thresh = cm.max() / 2.
-    for i in range(cm.shape[0]):
-        for j in range(cm.shape[1]):
-            plt.text(j, i, format(cm[i, j], 'd'),
-                    horizontalalignment="center",
-                    color="white" if cm[i, j] > thresh else "black")
-    plt.tight_layout()
-    
-    confusion_matrix_path = Path(__file__).parent.parent / "confusion_matrix_svm.png"
-    plt.savefig(confusion_matrix_path, dpi=150, bbox_inches='tight')
-    print(f"\nMatriz de confusión guardada en: {confusion_matrix_path}")
-    plt.close()
 

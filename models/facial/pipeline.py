@@ -17,7 +17,7 @@ DATA_DIR = "data"
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints"
 SVM_MODEL_PATH = CHECKPOINT_PATH / "svm_classifier.joblib"
 LABEL_ENCODER_PATH = CHECKPOINT_PATH / "label_encoder.joblib"
-CONFIDENCE_THRESHOLD = 0.6
+CONFIDENCE_THRESHOLD = 0.75
 
 _mtcnn = None
 _resnet = None
@@ -97,11 +97,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     classifier_type = args.classifier
-    classifier_name = "SVM" if classifier_type == "svm" else "Neural Network"
     
-    print("Extrayendo embeddings faciales...")
     X, y = extract_embeddings(DATA_DIR)
-
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
     try:
@@ -117,11 +114,12 @@ if __name__ == "__main__":
     strategy = create_classifier_strategy(classifier_type)
     face_identifier = FaceIdentifier(strategy)
     
-    print(f"Entrenando clasificador {classifier_name}...")
     face_identifier.train(X_train, y_train)
-    print(f"Modelo {classifier_name} entrenado y guardado")
 
-    print("Identificando personas en conjunto de prueba...")
+    print("")
+    print("─" * 60)
+    print("🔍 Identificando personas en conjunto de prueba...")
+    print("─" * 60)
     y_pred = []
     confidences = []
 
@@ -135,28 +133,43 @@ if __name__ == "__main__":
     unknown_mask = y_pred == "unknown"
     known_mask = ~unknown_mask
     
-    print(f"\n--- Resultados de clasificación {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD}) ---")
-    print(f"Personas conocidas identificadas: {np.sum(known_mask)}/{len(y_test)}")
-    print(f"Personas etiquetadas como desconocidas: {np.sum(unknown_mask)}/{len(y_test)}")
+    classifier_name = "SVM" if classifier_type == "svm" else "Neural Network"
+    print("")
+    print("═" * 60)
+    print(f"📊 Resultados de Clasificación - {classifier_name}")
+    print(f"   └─ Umbral de confianza: {CONFIDENCE_THRESHOLD:.2%}")
+    print("═" * 60)
+    print(f"   ├─ Personas conocidas identificadas: {np.sum(known_mask)}/{len(y_test)}")
+    print(f"   └─ Personas etiquetadas como desconocidas: {np.sum(unknown_mask)}/{len(y_test)}")
     
     if np.sum(known_mask) > 0:
         y_test_known = y_test[known_mask]
         y_pred_known = y_pred[known_mask]
         
         accuracy_known = accuracy_score(y_test_known, y_pred_known)
-        print(f"\n--- Precisión en personas conocidas: {accuracy_known:.4f} ---")
+        print("")
+        print("─" * 60)
+        print(f"✓ Precisión en personas conocidas: {accuracy_known:.2%}")
+        print("─" * 60)
         
         unique_persons = np.unique(np.concatenate([y_test_known, y_pred_known]))
-        print("\n--- Reporte de clasificación (personas conocidas) ---")
+        print("")
+        print("📋 Reporte de Clasificación (personas conocidas)")
+        print("─" * 60)
         print(classification_report(y_test_known, y_pred_known, labels=unique_persons, target_names=unique_persons))
 
     confidences = np.array(confidences)
-    print(f"\n--- Estadísticas de confianza ---")
-    print(f"Confianza promedio: {np.mean(confidences):.4f}")
-    print(f"Confianza mínima: {np.min(confidences):.4f}")
-    print(f"Confianza máxima: {np.max(confidences):.4f}")
-    print(f"Confianza promedio (conocidas): {np.mean(confidences[known_mask]):.4f}" if np.sum(known_mask) > 0 else "")
-    print(f"Confianza promedio (desconocidas): {np.mean(confidences[unknown_mask]):.4f}" if np.sum(unknown_mask) > 0 else "")
+    print("")
+    print("─" * 60)
+    print("📈 Estadísticas de Confianza")
+    print("─" * 60)
+    print(f"   ├─ Confianza promedio: {np.mean(confidences):.2%}")
+    print(f"   ├─ Confianza mínima: {np.min(confidences):.2%}")
+    print(f"   └─ Confianza máxima: {np.max(confidences):.2%}")
+    if np.sum(known_mask) > 0:
+        print(f"   ├─ Confianza promedio (conocidas): {np.mean(confidences[known_mask]):.2%}")
+    if np.sum(unknown_mask) > 0:
+        print(f"   └─ Confianza promedio (desconocidas): {np.mean(confidences[unknown_mask]):.2%}")
 
     all_labels = np.unique(np.concatenate([y_test, y_pred]))
     cm = confusion_matrix(y_test, y_pred, labels=all_labels)
@@ -180,5 +193,10 @@ if __name__ == "__main__":
     confusion_matrix_filename = f"confusion_matrix_facial_{classifier_type}.png"
     confusion_matrix_path = Path(__file__).parent / confusion_matrix_filename
     plt.savefig(confusion_matrix_path, dpi=150, bbox_inches='tight')
-    print(f"\nMatriz de confusión guardada en: {confusion_matrix_path}")
+    print("")
+    print("─" * 60)
+    print(f"💾 Matriz de confusión guardada")
+    print(f"   └─ {confusion_matrix_path}")
+    print("─" * 60)
+    print("")
     plt.close()

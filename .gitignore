@@ -15,3 +15,6 @@ models/*/checkpoints/*
 models/*/data/*
 
 .env
+
+# MacOS
+.DS_Store
