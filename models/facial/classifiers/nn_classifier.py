@@ -1,9 +1,6 @@
 import os
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.preprocessing import LabelEncoder
-import matplotlib.pyplot as plt
 from pathlib import Path
 from PIL import Image
 import torch
@@ -36,6 +33,13 @@ class FaceClassifier(nn.Module):
         self.relu = nn.ReLU()
     
     def forward(self, embeddings):
+        batch_size = embeddings.size(0)
+        use_eval_mode = batch_size == 1 and self.training
+        
+        if use_eval_mode:
+            self.bn1.eval()
+            self.bn2.eval()
+        
         embeddings = self.fc1(embeddings)
         embeddings = self.bn1(embeddings)
         embeddings = self.relu(embeddings)
@@ -45,6 +49,11 @@ class FaceClassifier(nn.Module):
         embeddings = self.relu(embeddings)
         embeddings = self.dropout2(embeddings)
         logits = self.fc3(embeddings)
+        
+        if use_eval_mode:
+            self.bn1.train()
+            self.bn2.train()
+        
         return logits
 
 class EmbeddingDataset(Dataset):

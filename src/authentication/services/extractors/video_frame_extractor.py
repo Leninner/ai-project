@@ -11,6 +11,7 @@ from ...services.video.video_converter import VideoConverter
 class VideoFrameExtractor:
     REQUIRED_FRAMES = 100
     MIN_VIDEO_DURATION_SECONDS = 30
+    DURATION_TOLERANCE_SECONDS = 0.2
     
     def __init__(self):
         pass
@@ -84,7 +85,9 @@ class VideoFrameExtractor:
             fps = self._get_fps(cap)
             video_duration = frame_count / fps
             
-            if video_duration < min_duration_seconds:
+            effective_min_duration = min_duration_seconds - self.DURATION_TOLERANCE_SECONDS
+            
+            if video_duration < effective_min_duration:
                 cap.release()
                 raise ValueError(
                     f"El video es demasiado corto para autenticación. Se requiere un video de al menos "

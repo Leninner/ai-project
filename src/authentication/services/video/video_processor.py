@@ -68,10 +68,12 @@ class VideoProcessor:
             
             cv2.imwrite(temp_frame_path, face_crop)
             
-            _, _ = self.media_processor.extract_voice_embedding_from_video(
+            _, emb = self.media_processor.extract_voice_embedding_from_video(
                 temp_video_path,
                 output_audio_path=temp_audio_path
             )
+
+            print("Embedding: ", emb)
             
             return temp_frame_path, temp_audio_path
         

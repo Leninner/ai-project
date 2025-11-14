@@ -12,6 +12,7 @@ class VideoAudioExtractor:
     MIN_AUDIO_SEGMENTS = 10
     MAX_AUDIO_SEGMENTS = 15
     MIN_AUDIO_DURATION_SECONDS = 3
+    DURATION_TOLERANCE_SECONDS = 0.2
     
     def __init__(self):
         pass
@@ -101,7 +102,9 @@ class VideoAudioExtractor:
         audio_data, sample_rate = sf.read(audio_path)
         audio_duration = len(audio_data) / sample_rate
         
-        if audio_duration < self.MIN_AUDIO_DURATION_SECONDS:
+        effective_min_duration = self.MIN_AUDIO_DURATION_SECONDS - self.DURATION_TOLERANCE_SECONDS
+        
+        if audio_duration < effective_min_duration:
             raise ValueError(
                 f"El audio extraído es demasiado corto. Se requiere al menos "
                 f"{self.MIN_AUDIO_DURATION_SECONDS} segundos de audio para autenticación. "
