@@ -96,38 +96,38 @@ def build_cnn_model(input_shape, num_classes):
     x = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(x)
     x = layers.BatchNormalization()(x)
     x = layers.MaxPooling2D((2, 2))(x)
-    x = layers.Dropout(0.25)(x)
+    x = layers.Dropout(0.1)(x)
     
     x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
     x = layers.BatchNormalization()(x)
     x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
     x = layers.BatchNormalization()(x)
     x = layers.MaxPooling2D((2, 2))(x)
-    x = layers.Dropout(0.25)(x)
+    x = layers.Dropout(0.1)(x)
     
     x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
     x = layers.BatchNormalization()(x)
     x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
     x = layers.BatchNormalization()(x)
     x = layers.MaxPooling2D((2, 2))(x)
-    x = layers.Dropout(0.25)(x)
+    x = layers.Dropout(0.15)(x)
     
     x = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(x)
     x = layers.BatchNormalization()(x)
     x = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(x)
     x = layers.BatchNormalization()(x)
     x = layers.MaxPooling2D((2, 2))(x)
-    x = layers.Dropout(0.25)(x)
+    x = layers.Dropout(0.15)(x)
     
     x = layers.GlobalAveragePooling2D()(x)
     
     x = layers.Dense(512, activation='relu')(x)
     x = layers.BatchNormalization()(x)
-    x = layers.Dropout(0.5)(x)
+    x = layers.Dropout(0.25)(x)
     
     x = layers.Dense(256, activation='relu')(x)
     x = layers.BatchNormalization()(x)
-    x = layers.Dropout(0.5)(x)
+    x = layers.Dropout(0.25)(x)
     
     outputs = layers.Dense(num_classes, activation='softmax', dtype='float32')(x)
     
@@ -136,11 +136,11 @@ def build_cnn_model(input_shape, num_classes):
 
 def create_data_augmentation():
     return keras.Sequential([
-        layers.RandomRotation(0.1),
-        layers.RandomZoom(0.1),
         layers.RandomFlip("horizontal"),
-        layers.RandomBrightness(0.1),
-        layers.RandomContrast(0.1),
+        layers.RandomRotation(0.02),
+        layers.RandomZoom(0.02),
+        layers.RandomBrightness(0.02),
+        layers.RandomContrast(0.02),
     ])
 
 def train_cnn_classifier(data_dir=None, epochs=EPOCHS, batch_size=BATCH_SIZE, learning_rate=LEARNING_RATE):
@@ -172,7 +172,14 @@ def train_cnn_classifier(data_dir=None, epochs=EPOCHS, batch_size=BATCH_SIZE, le
     
     data_augmentation = create_data_augmentation()
     
-    optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
+    initial_learning_rate = learning_rate
+    
+    optimizer = keras.optimizers.Adam(
+        learning_rate=initial_learning_rate,
+        beta_1=0.9,
+        beta_2=0.999,
+        epsilon=1e-7
+    )
     model.compile(
         optimizer=optimizer,
         loss='sparse_categorical_crossentropy',
@@ -181,9 +188,10 @@ def train_cnn_classifier(data_dir=None, epochs=EPOCHS, batch_size=BATCH_SIZE, le
     
     early_stopping = callbacks.EarlyStopping(
         monitor='val_loss',
-        patience=20,
+        patience=40,
         restore_best_weights=True,
-        verbose=1
+        verbose=1,
+        min_delta=1e-6
     )
     
     reduce_lr = callbacks.ReduceLROnPlateau(
@@ -191,7 +199,8 @@ def train_cnn_classifier(data_dir=None, epochs=EPOCHS, batch_size=BATCH_SIZE, le
         factor=0.5,
         patience=10,
         min_lr=1e-7,
-        verbose=1
+        verbose=1,
+        min_delta=1e-6
     )
     
     model_checkpoint = callbacks.ModelCheckpoint(
@@ -229,8 +238,10 @@ def train_cnn_classifier(data_dir=None, epochs=EPOCHS, batch_size=BATCH_SIZE, le
     train_gen = augmented_generator(train_images, train_labels, batch_size, augment=True)
     val_gen = augmented_generator(val_images, val_labels, batch_size, augment=False)
     
-    steps_per_epoch = len(train_images) // batch_size
-    validation_steps = len(val_images) // batch_size
+    steps_per_epoch = max(1, len(train_images) // batch_size)
+    validation_steps = max(1, len(val_images) // batch_size)
+    
+    print(f"Steps per epoch: {steps_per_epoch}, Validation steps: {validation_steps}")
     
     history = model.fit(
         train_gen,
@@ -241,6 +252,15 @@ def train_cnn_classifier(data_dir=None, epochs=EPOCHS, batch_size=BATCH_SIZE, le
         callbacks=[early_stopping, reduce_lr, model_checkpoint],
         verbose=1
     )
+    
+    final_train_loss = history.history['loss'][-1]
+    final_val_loss = history.history['val_loss'][-1]
+    final_train_acc = history.history['accuracy'][-1]
+    final_val_acc = history.history['val_accuracy'][-1]
+    
+    print(f"\nTraining completed:")
+    print(f"  Final training loss: {final_train_loss:.4f}, accuracy: {final_train_acc:.4f}")
+    print(f"  Final validation loss: {final_val_loss:.4f}, accuracy: {final_val_acc:.4f}")
     
     model.save(str(CNN_MODEL_PATH))
     
@@ -262,6 +282,9 @@ def load_cnn_classifier():
                 _label_encoder = pickle.load(f)
             
             _cnn_model = keras.models.load_model(str(CNN_MODEL_PATH))
+            
+            num_classes = len(_label_encoder.classes_)
+            print(f"Loaded CNN model with {num_classes} classes: {list(_label_encoder.classes_)}")
         else:
             raise ValueError("CNN classifier not trained. Please train the model first.")
     
@@ -301,6 +324,9 @@ def identify_face_from_image(image_path):
 def identify_face_from_array(face_array):
     model, label_encoder = load_cnn_classifier()
     
+    original_shape = face_array.shape
+    original_dtype = face_array.dtype
+    
     if len(face_array.shape) == 3:
         if face_array.shape != (IMAGE_SIZE, IMAGE_SIZE, 3):
             image = Image.fromarray(face_array.astype(np.uint8) if face_array.dtype != np.uint8 else face_array)
@@ -313,16 +339,23 @@ def identify_face_from_array(face_array):
     if face_array.shape[1:] != (IMAGE_SIZE, IMAGE_SIZE, 3):
         raise ValueError(f"Expected image shape ({IMAGE_SIZE}, {IMAGE_SIZE}, 3), got {face_array.shape[1:]}")
     
-    if face_array.dtype != np.float32:
-        if face_array.dtype == np.uint8:
-            face_array = face_array.astype(np.float32) / 255.0
-        else:
-            face_array = face_array.astype(np.float32)
-            if face_array.max() > 1.0:
-                face_array = face_array / 255.0
+    if face_array.dtype == np.uint8:
+        face_array = face_array.astype(np.float32) / 255.0
+    elif face_array.dtype != np.float32:
+        face_array = face_array.astype(np.float32)
+        if face_array.max() > 1.0:
+            face_array = face_array / 255.0
+    elif face_array.max() > 1.0:
+        face_array = face_array / 255.0
+    
+    if face_array.min() < 0.0 or face_array.max() > 1.0:
+        face_array = np.clip(face_array, 0.0, 1.0)
     
     predictions = model.predict(face_array, verbose=0)
     probabilities = predictions[0]
+    
+    if not np.allclose(probabilities.sum(), 1.0, atol=1e-5):
+        probabilities = probabilities / probabilities.sum()
     
     predicted_index = np.argmax(probabilities)
     confidence_score = float(probabilities[predicted_index])
