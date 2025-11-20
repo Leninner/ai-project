@@ -18,3 +18,6 @@ models/*/data/*
 
 # MacOS
 .DS_Store
+
+# APE3
+ape3/**

@@ -12,7 +12,7 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 DATA_DIR = Path(__file__).parent.parent / "data"
 CHECKPOINT_PATH = Path(__file__).parent.parent / "checkpoints"
 NN_MODEL_PATH = CHECKPOINT_PATH / "nn_classifier.pth"
-LABEL_ENCODER_PATH = CHECKPOINT_PATH / "nn_label_encoder.joblib"
+LABEL_ENCODER_PATH = CHECKPOINT_PATH / "nn_label_encoder.pkl"
 CONFIDENCE_THRESHOLD = 0.75
 
 _mtcnn = None
@@ -80,18 +80,24 @@ def get_resnet():
     return _resnet
 
 def extract_embedding(image_path):
-    mtcnn = get_mtcnn()
     resnet = get_resnet()
     
     image = Image.open(image_path).convert('RGB')
-    cropped_face_tensor = mtcnn(image)
+    image_array = np.array(image)
     
-    if cropped_face_tensor is None:
-        raise ValueError(f"No faces found in image {image_path}")
+    if image_array.shape != (160, 160, 3):
+        mtcnn = get_mtcnn()
+        cropped_face_tensor = mtcnn(image)
+        if cropped_face_tensor is None:
+            raise ValueError(f"No faces found in image {image_path}")
+        face_tensor = cropped_face_tensor
+    else:
+        image_array_normalized = image_array.astype(np.float32) / 255.0
+        face_tensor = torch.from_numpy(image_array_normalized).permute(2, 0, 1)
     
-    cropped_face_tensor = cropped_face_tensor.unsqueeze(0)
+    face_tensor = face_tensor.unsqueeze(0)
     with torch.no_grad():
-        embedding = resnet(cropped_face_tensor)
+        embedding = resnet(face_tensor)
     
     return embedding.squeeze().numpy()
 
@@ -162,8 +168,9 @@ def train_nn_classifier(X_train, y_train, epochs=100, batch_size=32, learning_ra
     classifier_model.eval()
     torch.save(classifier_model.state_dict(), NN_MODEL_PATH)
     
-    import joblib
-    joblib.dump(label_encoder, LABEL_ENCODER_PATH)
+    import pickle
+    with open(LABEL_ENCODER_PATH, 'wb') as f:
+        pickle.dump(label_encoder, f)
     
     print(f"Modelo Neural Network entrenado y guardado en {NN_MODEL_PATH}")
     
@@ -174,8 +181,9 @@ def load_nn_classifier():
     
     if _nn_classifier is None or _label_encoder is None:
         if NN_MODEL_PATH.exists() and LABEL_ENCODER_PATH.exists():
-            import joblib
-            _label_encoder = joblib.load(LABEL_ENCODER_PATH)
+            import pickle
+            with open(LABEL_ENCODER_PATH, 'rb') as f:
+                _label_encoder = pickle.load(f)
             num_classes = len(_label_encoder.classes_)
             
             embedding_dim = 512

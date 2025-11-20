@@ -63,8 +63,8 @@ class TrainingService:
         
         classifier_type = classifier_type or BiometricConfig.FACIAL_CLASSIFIER_TYPE
         
-        if classifier_type not in ['svm', 'nn']:
-            raise ValueError(f"Invalid classifier type: {classifier_type}. Must be 'svm' or 'nn'")
+        if classifier_type not in ['svm', 'nn', 'cnn']:
+            raise ValueError(f"Invalid classifier type: {classifier_type}. Must be 'svm', 'nn', or 'cnn'")
         
         result = subprocess.run(
             ['python', str(cls.FACIAL_PIPELINE), '--classifier', classifier_type],

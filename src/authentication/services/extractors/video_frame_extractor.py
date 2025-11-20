@@ -3,18 +3,24 @@ import os
 from pathlib import Path
 from typing import List, Optional
 import numpy as np
+import sys
 
 from ...biometrics.face_detector import FaceDetector
 from ...services.video.video_converter import VideoConverter
 
+facial_models_path = Path(__file__).parent.parent.parent.parent.parent / "models" / "facial"
+if str(facial_models_path) not in sys.path:
+    sys.path.insert(0, str(facial_models_path))
+from facial_preprocessor import FacialPreprocessor
+
 
 class VideoFrameExtractor:
-    REQUIRED_FRAMES = 100
+    REQUIRED_FRAMES = 200
     MIN_VIDEO_DURATION_SECONDS = 30
     DURATION_TOLERANCE_SECONDS = 0.2
     
     def __init__(self):
-        pass
+        self.preprocessor = FacialPreprocessor()
     
     def extract_frames(
         self,
@@ -158,7 +164,14 @@ class VideoFrameExtractor:
             if face_crop is not None:
                 saved_count += 1
                 frame_path = output_dir / f"{saved_count}.png"
-                cv2.imwrite(str(frame_path), face_crop)
+                
+                rgb_array = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
+                preprocessed = self.preprocessor.preprocess_cropped_face(rgb_array)
+                
+                from PIL import Image
+                preprocessed_image = Image.fromarray(preprocessed)
+                preprocessed_image.save(str(frame_path))
+                
                 frame_paths.append(str(frame_path))
             
             frames_attempted += 1

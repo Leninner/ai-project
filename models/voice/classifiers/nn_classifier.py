@@ -19,7 +19,7 @@ from speechbrain.inference import EncoderClassifier
 DATA_DIR = Path(__file__).parent.parent / "data"
 CHECKPOINT_PATH = Path(__file__).parent.parent / "checkpoints"
 NN_MODEL_PATH = CHECKPOINT_PATH / "nn_classifier.pth"
-LABEL_ENCODER_PATH = CHECKPOINT_PATH / "nn_label_encoder.joblib"
+LABEL_ENCODER_PATH = CHECKPOINT_PATH / "nn_label_encoder.pkl"
 CONFIDENCE_THRESHOLD = 0.75
 MODEL = "speechbrain/spkrec-ecapa-voxceleb"
 
@@ -156,8 +156,9 @@ def train_nn_classifier(embeddings_train, labels_train, epochs=100, batch_size=3
     classifier_model.eval()
     torch.save(classifier_model.state_dict(), NN_MODEL_PATH)
     
-    import joblib
-    joblib.dump(label_encoder, LABEL_ENCODER_PATH)
+    import pickle
+    with open(LABEL_ENCODER_PATH, 'wb') as f:
+        pickle.dump(label_encoder, f)
     
     print(f"Modelo Neural Network entrenado y guardado en {NN_MODEL_PATH}")
     
@@ -168,8 +169,9 @@ def load_nn_classifier():
     
     if _nn_classifier is None or _label_encoder is None:
         if NN_MODEL_PATH.exists() and LABEL_ENCODER_PATH.exists():
-            import joblib
-            _label_encoder = joblib.load(LABEL_ENCODER_PATH)
+            import pickle
+            with open(LABEL_ENCODER_PATH, 'rb') as f:
+                _label_encoder = pickle.load(f)
             num_classes = len(_label_encoder.classes_)
             
             embedding_dim = 192

@@ -29,11 +29,17 @@ train-voice-svm:
 train-facial-svm:
 	cd models/facial && uv run python pipeline.py
 
+train-facial-cnn:
+	cd models/facial && uv run python pipeline.py -c cnn
+
 train-voice-nn:
 	cd models/voice && uv run python pipeline.py -c nn
 
 train-facial-nn:
 	cd models/facial && uv run python pipeline.py -c nn
+
+train-voice-cnn:
+	cd models/voice && uv run python pipeline.py -c cnn
 
 db-up:
 	docker compose up -d

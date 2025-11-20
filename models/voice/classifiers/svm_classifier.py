@@ -21,7 +21,7 @@ from speechbrain.inference import EncoderClassifier
 DATA_DIR = Path(__file__).parent.parent / "data"
 CHECKPOINT_PATH = Path(__file__).parent.parent / "checkpoints"
 SVM_MODEL_PATH = CHECKPOINT_PATH / "svm_classifier.joblib"
-LABEL_ENCODER_PATH = CHECKPOINT_PATH / "label_encoder.joblib"
+LABEL_ENCODER_PATH = CHECKPOINT_PATH / "label_encoder.pkl"
 CONFIDENCE_THRESHOLD = 0.3
 MODEL = "speechbrain/spkrec-ecapa-voxceleb"
 
@@ -77,7 +77,9 @@ def train_svm_classifier(embeddings_train, labels_train):
     svm_classifier.fit(embeddings_train, encoded_labels)
     
     joblib.dump(svm_classifier, SVM_MODEL_PATH)
-    joblib.dump(label_encoder, LABEL_ENCODER_PATH)
+    import pickle
+    with open(LABEL_ENCODER_PATH, 'wb') as f:
+        pickle.dump(label_encoder, f)
     
     print(f"Modelo SVM entrenado y guardado en {SVM_MODEL_PATH}")
     
@@ -89,7 +91,9 @@ def load_svm_classifier():
     if _svm_classifier is None or _label_encoder is None:
         if SVM_MODEL_PATH.exists() and LABEL_ENCODER_PATH.exists():
             _svm_classifier = joblib.load(SVM_MODEL_PATH)
-            _label_encoder = joblib.load(LABEL_ENCODER_PATH)
+            import pickle
+            with open(LABEL_ENCODER_PATH, 'rb') as f:
+                _label_encoder = pickle.load(f)
         else:
             raise ValueError("SVM classifier not trained. Please train the model first.")
     

@@ -2,10 +2,11 @@ from typing import Tuple, Optional, List
 from django.core.files.uploadedfile import UploadedFile
 from pathlib import Path
 import shutil
+from PIL import Image
 from ..models import User
 from .video import VideoProcessor
 from .training_service import TrainingService
-from .biometric_media_processor import BiometricMediaProcessor
+from ..biometrics.face_detector import FaceDetector
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,24 +15,32 @@ logger = logging.getLogger(__name__)
 class RegistrationService:
     def __init__(self):
         self.video_processor = VideoProcessor()
-        self.media_processor = BiometricMediaProcessor()
     
     def _validate_frames_contain_faces(self, frame_paths: List[str]) -> Tuple[bool, str]:
         if not frame_paths:
             return False, "No se extrajeron frames del video"
         
-        validation_sample_size = min(20, len(frame_paths))
+        validation_sample_size = min(40, len(frame_paths))
         step = max(1, len(frame_paths) // validation_sample_size)
         sample_frames = [frame_paths[i] for i in range(0, len(frame_paths), step)][:validation_sample_size]
         
-        embeddings = self.media_processor.extract_facial_embeddings_from_frames(sample_frames)
+        faces_detected = 0
+        for frame_path in sample_frames:
+            try:
+                image = Image.open(frame_path).convert('RGB')
+                face_crop = FaceDetector.extract_face_from_image(image)
+                if face_crop is not None:
+                    faces_detected += 1
+            except Exception as e:
+                logger.debug(f"Error detecting face in {frame_path}: {str(e)}")
+                continue
         
-        if len(embeddings) < len(sample_frames) * 0.8:
+        if faces_detected < len(sample_frames) * 0.8:
             error_msg = "No se detectaron rostros en algunas imágenes del video. Por favor, asegúrate de que tu cara esté completamente visible, bien iluminada y mirando hacia la cámara durante toda la grabación."
-            logger.warning(f"Face validation failed: only {len(embeddings)}/{len(sample_frames)} frames had valid faces")
+            logger.warning(f"Face validation failed: only {faces_detected}/{len(sample_frames)} frames had valid faces")
             return False, error_msg
         
-        logger.info(f"Face validation passed for {len(embeddings)}/{len(sample_frames)} sample frames")
+        logger.info(f"Face validation passed for {faces_detected}/{len(sample_frames)} sample frames")
         return True, "Validation successful"
     
     def _cleanup_user_data(self, username: str) -> None:

@@ -13,7 +13,7 @@ from PIL import Image
 import torch
 from facenet_pytorch import MTCNN, InceptionResnetV1
 
-DATA_DIR = "data"
+DATA_DIR = Path(__file__).parent / "data"
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints"
 SVM_MODEL_PATH = CHECKPOINT_PATH / "svm_classifier.joblib"
 LABEL_ENCODER_PATH = CHECKPOINT_PATH / "label_encoder.joblib"
@@ -37,18 +37,24 @@ def get_resnet():
     return _resnet
 
 def extract_embedding(image_path):
-    mtcnn = get_mtcnn()
     resnet = get_resnet()
     
     img = Image.open(image_path).convert('RGB')
-    img_cropped = mtcnn(img)
+    img_array = np.array(img)
     
-    if img_cropped is None:
-        raise ValueError(f"No faces found in image {image_path}")
+    if img_array.shape != (160, 160, 3):
+        mtcnn = get_mtcnn()
+        img_cropped = mtcnn(img)
+        if img_cropped is None:
+            raise ValueError(f"No faces found in image {image_path}")
+        img_tensor = img_cropped
+    else:
+        img_array_normalized = img_array.astype(np.float32) / 255.0
+        img_tensor = torch.from_numpy(img_array_normalized).permute(2, 0, 1)
     
-    img_cropped = img_cropped.unsqueeze(0)
+    img_tensor = img_tensor.unsqueeze(0)
     with torch.no_grad():
-        embedding = resnet(img_cropped)
+        embedding = resnet(img_tensor)
     
     return embedding.squeeze().numpy()
 
@@ -90,16 +96,13 @@ if __name__ == "__main__":
     parser.add_argument(
         '--classifier', '-c',
         type=str,
-        choices=['svm', 'nn'],
+        choices=['svm', 'nn', 'cnn'],
         default='svm',
-        help='Classifier type to use: svm (Support Vector Machine) or nn (Neural Network). Default: svm'
+        help='Classifier type to use: svm (Support Vector Machine), nn (Neural Network), or cnn (Convolutional Neural Network). Default: svm'
     )
     args = parser.parse_args()
     
     classifier_type = args.classifier
-    
-    X, y = extract_embeddings(DATA_DIR)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
     try:
         from .classifiers.classifier_strategy import create_classifier_strategy, FaceIdentifier
@@ -114,26 +117,62 @@ if __name__ == "__main__":
     strategy = create_classifier_strategy(classifier_type)
     face_identifier = FaceIdentifier(strategy)
     
-    face_identifier.train(X_train, y_train)
+    if classifier_type == 'cnn':
+        try:
+            from .classifiers import cnn_classifier
+        except ImportError:
+            import sys
+            from pathlib import Path
+            facial_path = Path(__file__).parent
+            if str(facial_path) not in sys.path:
+                sys.path.insert(0, str(facial_path))
+            from classifiers import cnn_classifier
+        all_images, all_labels = cnn_classifier.load_images_from_directory(DATA_DIR)
+        indices = np.arange(len(all_images))
+        train_indices, test_indices = train_test_split(indices, test_size=0.3, random_state=42, stratify=all_labels)
+        train_images = all_images[train_indices]
+        train_labels = all_labels[train_indices]
+        test_images = all_images[test_indices]
+        y_test = all_labels[test_indices]
+        
+        face_identifier.train(embeddings_train=None, labels_train=None, data_dir=DATA_DIR)
+        
+        y_pred = []
+        confidences = []
+        for img in test_images:
+            identified, confidence = face_identifier.identify_face(image_array=img)
+            y_pred.append(identified)
+            confidences.append(confidence)
+        y_pred = np.array(y_pred)
+    else:
+        X, y = extract_embeddings(DATA_DIR)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+        face_identifier.train(X_train, y_train)
 
-    print("")
-    print("─" * 60)
-    print("🔍 Identificando personas en conjunto de prueba...")
-    print("─" * 60)
-    y_pred = []
-    confidences = []
+    if classifier_type != 'cnn':
+        print("")
+        print("─" * 60)
+        print("🔍 Identificando personas en conjunto de prueba...")
+        print("─" * 60)
+        y_pred = []
+        confidences = []
 
-    for query_emb in X_test:
-        identified, confidence = face_identifier.identify_face(query_emb)
-        y_pred.append(identified)
-        confidences.append(confidence)
+        for query_emb in X_test:
+            identified, confidence = face_identifier.identify_face(query_emb)
+            y_pred.append(identified)
+            confidences.append(confidence)
 
-    y_pred = np.array(y_pred)
+        y_pred = np.array(y_pred)
+    else:
+        print("")
+        print("─" * 60)
+        print("🔍 Identificando personas en conjunto de prueba...")
+        print("─" * 60)
     
     unknown_mask = y_pred == "unknown"
     known_mask = ~unknown_mask
     
-    classifier_name = "SVM" if classifier_type == "svm" else "Neural Network"
+    classifier_name = "SVM" if classifier_type == "svm" else ("Neural Network" if classifier_type == "nn" else "CNN")
     print("")
     print("═" * 60)
     print(f"📊 Resultados de Clasificación - {classifier_name}")
@@ -174,8 +213,10 @@ if __name__ == "__main__":
     all_labels = np.unique(np.concatenate([y_test, y_pred]))
     cm = confusion_matrix(y_test, y_pred, labels=all_labels)
     plt.figure(figsize=(12, 10))
-    plt.imshow(cm, interpolation='nearest', cmap='Blues' if classifier_type == 'svm' else 'Greens')
-    plt.title(f"Matriz de confusión - FaceNet + {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD})")
+    cmap_colors = {'svm': 'Blues', 'nn': 'Greens', 'cnn': 'Reds'}
+    plt.imshow(cm, interpolation='nearest', cmap=cmap_colors.get(classifier_type, 'Blues'))
+    title_prefix = "CNN" if classifier_type == 'cnn' else "FaceNet +"
+    plt.title(f"Matriz de confusión - {title_prefix} {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD})")
     plt.colorbar()
     tick_marks = np.arange(len(all_labels))
     plt.xticks(tick_marks, all_labels, rotation=45, ha='right')

@@ -73,8 +73,6 @@ class VideoProcessor:
                 output_audio_path=temp_audio_path
             )
 
-            print("Embedding: ", emb)
-            
             return temp_frame_path, temp_audio_path
         
         except Exception as e:
@@ -95,8 +93,8 @@ class VideoProcessor:
         user_facial_dir.mkdir(parents=True, exist_ok=True)
         user_voice_dir.mkdir(parents=True, exist_ok=True)
         
-        existing_frames = len(list(user_facial_dir.glob("*.png")))
-        existing_audio = len(list(user_voice_dir.glob("*.wav")))
+        existing_frames = self._get_max_frame_index(user_facial_dir)
+        existing_audio = self._get_max_audio_index(user_voice_dir)
         
         frame_paths = self.frame_extractor.extract_frames(
             video_path,
@@ -111,4 +109,24 @@ class VideoProcessor:
         )
         
         return frame_paths, audio_paths
+    
+    def _get_max_frame_index(self, directory: Path) -> int:
+        max_index = 0
+        for png_file in directory.glob("*.png"):
+            try:
+                index = int(png_file.stem)
+                max_index = max(max_index, index)
+            except ValueError:
+                continue
+        return max_index
+    
+    def _get_max_audio_index(self, directory: Path) -> int:
+        max_index = 0
+        for wav_file in directory.glob("*.wav"):
+            try:
+                index = int(wav_file.stem)
+                max_index = max(max_index, index)
+            except ValueError:
+                continue
+        return max_index
 
