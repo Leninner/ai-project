@@ -3,7 +3,6 @@ import numpy as np
 import argparse
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
 import joblib
 import matplotlib.pyplot as plt
@@ -24,12 +23,10 @@ from speechbrain.inference import EncoderClassifier
 DATA_DIR = "data"
 MODEL = "speechbrain/spkrec-ecapa-voxceleb"
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints"
-SVM_MODEL_PATH = CHECKPOINT_PATH / "svm_classifier.joblib"
 LABEL_ENCODER_PATH = CHECKPOINT_PATH / "label_encoder.joblib"
 CONFIDENCE_THRESHOLD = 0.75
 
 _encoder = None
-_svm_classifier = None
 _label_encoder = None
 
 def get_encoder():
@@ -62,7 +59,7 @@ def extract_embeddings(data_dir):
             y.append(speaker)
     return np.array(X), np.array(y)
 
-def identify_speaker(query_embedding, classifier_type: str = "svm"):
+def identify_speaker(query_embedding, classifier_type: str = "nn"):
     try:
         from .classifiers.classifier_strategy import create_classifier_strategy, VoiceIdentifier
     except ImportError:
@@ -82,9 +79,9 @@ if __name__ == "__main__":
     parser.add_argument(
         '--classifier', '-c',
         type=str,
-        choices=['svm', 'nn'],
-        default='svm',
-        help='Classifier type to use: svm (Support Vector Machine) or nn (Neural Network). Default: svm'
+        choices=['nn'],
+        default='nn',
+        help='Classifier type to use: nn (Neural Network). Default: nn'
     )
     args = parser.parse_args()
     
@@ -126,7 +123,7 @@ if __name__ == "__main__":
     unknown_mask = y_pred == "unknown"
     known_mask = ~unknown_mask
     
-    classifier_name = "SVM" if classifier_type == "svm" else "Neural Network"
+    classifier_name = "Neural Network"
     print("")
     print("═" * 60)
     print(f"📊 Resultados de Clasificación - {classifier_name}")
@@ -167,7 +164,7 @@ if __name__ == "__main__":
     all_labels = np.unique(np.concatenate([y_test, y_pred]))
     cm = confusion_matrix(y_test, y_pred, labels=all_labels)
     plt.figure(figsize=(12, 10))
-    plt.imshow(cm, interpolation='nearest', cmap='Blues' if classifier_type == 'svm' else 'Greens')
+    plt.imshow(cm, interpolation='nearest', cmap='Greens')
     plt.title(f"Matriz de confusión - SpeechBrain + {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD})")
     plt.colorbar()
     tick_marks = np.arange(len(all_labels))

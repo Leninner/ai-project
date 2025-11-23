@@ -5,8 +5,6 @@
 help:
 	@echo "Available targets:"
 	@echo ""
-	@echo "  make train-voice      Train voice recognition model using SVM and SpeechBrain"
-	@echo "  make train-facial     Train facial recognition model using SVM and Face Recognition"
 	@echo "  make db-up            Start PostgreSQL database with Docker Compose"
 	@echo "  make db-down          Stop PostgreSQL database"
 	@echo "  make db-reset         Reset database (stop, remove volumes, start)"
@@ -22,12 +20,6 @@ prepare-data:
 	unzip -o models/voice/data.zip -d models/voice/
 	rm models/facial/data.zip
 	rm models/voice/data.zip
-
-train-voice-svm:
-	cd models/voice && uv run python pipeline.py
-
-train-facial-svm:
-	cd models/facial && uv run python pipeline.py
 
 train-facial-cnn:
 	cd models/facial && uv run python pipeline.py -c cnn

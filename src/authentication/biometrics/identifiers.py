@@ -17,18 +17,7 @@ class BaseIdentifier:
         model, label_encoder = self.model_loader.load()
         classifier_type = self.model_loader.classifier_type
         
-        if classifier_type == 'svm':
-            query_embedding_reshaped = embedding.reshape(1, -1)
-            probabilities = model.predict_proba(query_embedding_reshaped)[0]
-            predicted_class = model.predict(query_embedding_reshaped)[0]
-            confidence = np.max(probabilities)
-            
-            if confidence < self.confidence_threshold:
-                return "unknown", float(confidence)
-            
-            identified = label_encoder.inverse_transform([predicted_class])[0]
-            return identified, float(confidence)
-        elif classifier_type == 'cnn':
+        if classifier_type == 'cnn':
             raise NotImplementedError("CNN prediction should use _predict_cnn method")
         else:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

@@ -3,11 +3,7 @@ import numpy as np
 import argparse
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from sklearn.svm import SVC
-from sklearn.preprocessing import LabelEncoder
-import joblib
 import matplotlib.pyplot as plt
-from collections import defaultdict
 from pathlib import Path
 from PIL import Image
 import torch
@@ -15,14 +11,10 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 
 DATA_DIR = Path(__file__).parent / "data"
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints"
-SVM_MODEL_PATH = CHECKPOINT_PATH / "svm_classifier.joblib"
-LABEL_ENCODER_PATH = CHECKPOINT_PATH / "label_encoder.joblib"
 CONFIDENCE_THRESHOLD = 0.75
 
 _mtcnn = None
 _resnet = None
-_svm_classifier = None
-_label_encoder = None
 
 def get_mtcnn():
     global _mtcnn
@@ -76,7 +68,7 @@ def extract_embeddings(data_dir):
                 continue
     return np.array(X), np.array(y)
 
-def identify_face(query_embedding, classifier_type: str = "svm"):
+def identify_face(query_embedding, classifier_type: str = "nn"):
     try:
         from .classifiers.classifier_strategy import create_classifier_strategy, FaceIdentifier
     except ImportError:
@@ -96,9 +88,9 @@ if __name__ == "__main__":
     parser.add_argument(
         '--classifier', '-c',
         type=str,
-        choices=['svm', 'nn', 'cnn'],
-        default='svm',
-        help='Classifier type to use: svm (Support Vector Machine), nn (Neural Network), or cnn (Convolutional Neural Network). Default: svm'
+        choices=['nn', 'cnn'],
+        default='nn',
+        help='Classifier type to use: nn (Neural Network), or cnn (Convolutional Neural Network). Default: nn'
     )
     args = parser.parse_args()
     
@@ -172,7 +164,7 @@ if __name__ == "__main__":
     unknown_mask = y_pred == "unknown"
     known_mask = ~unknown_mask
     
-    classifier_name = "SVM" if classifier_type == "svm" else ("Neural Network" if classifier_type == "nn" else "CNN")
+    classifier_name = "Neural Network" if classifier_type == "nn" else "CNN"
     print("")
     print("═" * 60)
     print(f"📊 Resultados de Clasificación - {classifier_name}")
@@ -213,7 +205,7 @@ if __name__ == "__main__":
     all_labels = np.unique(np.concatenate([y_test, y_pred]))
     cm = confusion_matrix(y_test, y_pred, labels=all_labels)
     plt.figure(figsize=(12, 10))
-    cmap_colors = {'svm': 'Blues', 'nn': 'Greens', 'cnn': 'Reds'}
+    cmap_colors = {'nn': 'Greens', 'cnn': 'Reds'}
     plt.imshow(cm, interpolation='nearest', cmap=cmap_colors.get(classifier_type, 'Blues'))
     title_prefix = "CNN" if classifier_type == 'cnn' else "FaceNet +"
     plt.title(f"Matriz de confusión - {title_prefix} {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD})")

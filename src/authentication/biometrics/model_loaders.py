@@ -10,16 +10,12 @@ from .config import BiometricConfig
 
 
 class BaseModelLoader(ABC):
-    def __init__(self, classifier_type: str = "svm"):
+    def __init__(self, classifier_type: str = "nn"):
         self.classifier_type = classifier_type.lower()
-        if self.classifier_type not in ['svm', 'nn', 'cnn']:
-            raise ValueError(f"Invalid classifier type: {classifier_type}. Must be 'svm', 'nn', or 'cnn'")
+        if self.classifier_type not in ['nn', 'cnn']:
+            raise ValueError(f"Invalid classifier type: {classifier_type}. Must be 'nn', or 'cnn'")
         self._model = None
         self._label_encoder = None
-    
-    @abstractmethod
-    def _get_svm_paths(self) -> Tuple[Path, Path]:
-        pass
     
     @abstractmethod
     def _get_nn_paths(self) -> Tuple[Path, Path]:
@@ -49,13 +45,7 @@ class BaseModelLoader(ABC):
         if self._model is None or self._label_encoder is None:
             self._validate_paths()
             
-            if self.classifier_type == 'svm':
-                svm_model_path, label_encoder_path = self._get_svm_paths()
-                self._model = joblib.load(svm_model_path)
-                import pickle
-                with open(label_encoder_path, 'rb') as f:
-                    self._label_encoder = pickle.load(f)
-            elif self.classifier_type == 'cnn':
+            if self.classifier_type == 'cnn':
                 cnn_model_path, label_encoder_path = self._get_cnn_paths()
                 self._model = self._load_cnn_model()
                 import pickle
@@ -82,9 +72,6 @@ class VoiceModelLoader(BaseModelLoader):
     def __init__(self, classifier_type: str = None):
         classifier_type = classifier_type or BiometricConfig.VOICE_CLASSIFIER_TYPE
         super().__init__(classifier_type)
-    
-    def _get_svm_paths(self) -> Tuple[Path, Path]:
-        return BiometricConfig.VOICE_SVM_MODEL_PATH, BiometricConfig.VOICE_SVM_LABEL_ENCODER_PATH
     
     def _get_nn_paths(self) -> Tuple[Path, Path]:
         return BiometricConfig.VOICE_NN_MODEL_PATH, BiometricConfig.VOICE_NN_LABEL_ENCODER_PATH
@@ -116,11 +103,7 @@ class VoiceModelLoader(BaseModelLoader):
         return VoiceClassifier(embedding_dim=self._get_embedding_dim(), num_classes=num_classes)
     
     def _validate_paths(self) -> None:
-        if self.classifier_type == 'svm':
-            svm_model_path, label_encoder_path = self._get_svm_paths()
-            if not svm_model_path.exists() or not label_encoder_path.exists():
-                raise ValueError("Voice SVM models not found. Please train the models first.")
-        elif self.classifier_type == 'cnn':
+        if self.classifier_type == 'cnn':
             raise NotImplementedError("CNN classifier not supported for voice recognition")
         else:
             nn_model_path, label_encoder_path = self._get_nn_paths()
@@ -132,9 +115,6 @@ class FacialModelLoader(BaseModelLoader):
     def __init__(self, classifier_type: str = None):
         classifier_type = classifier_type or BiometricConfig.FACIAL_CLASSIFIER_TYPE
         super().__init__(classifier_type)
-    
-    def _get_svm_paths(self) -> Tuple[Path, Path]:
-        return BiometricConfig.FACIAL_SVM_MODEL_PATH, BiometricConfig.FACIAL_SVM_LABEL_ENCODER_PATH
     
     def _get_nn_paths(self) -> Tuple[Path, Path]:
         return BiometricConfig.FACIAL_NN_MODEL_PATH, BiometricConfig.FACIAL_NN_LABEL_ENCODER_PATH
@@ -181,11 +161,7 @@ class FacialModelLoader(BaseModelLoader):
         return FaceClassifier(embedding_dim=self._get_embedding_dim(), num_classes=num_classes)
     
     def _validate_paths(self) -> None:
-        if self.classifier_type == 'svm':
-            svm_model_path, label_encoder_path = self._get_svm_paths()
-            if not svm_model_path.exists() or not label_encoder_path.exists():
-                raise ValueError("Facial SVM models not found. Please train the models first.")
-        elif self.classifier_type == 'cnn':
+        if self.classifier_type == 'cnn':
             cnn_model_path, label_encoder_path = self._get_cnn_paths()
             if not cnn_model_path.exists() or not label_encoder_path.exists():
                 raise ValueError("Facial CNN models not found. Please train the models first.")

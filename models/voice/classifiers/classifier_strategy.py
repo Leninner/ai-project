@@ -15,20 +15,6 @@ class ClassifierStrategy(ABC):
     def get_name(self) -> str:
         pass
 
-class SVMClassifierStrategy(ClassifierStrategy):
-    def __init__(self):
-        from . import svm_classifier
-        self.svm_module = svm_classifier
-    
-    def train(self, embeddings_train: np.ndarray, labels_train: np.ndarray) -> Tuple:
-        return self.svm_module.train_svm_classifier(embeddings_train, labels_train)
-    
-    def identify_speaker(self, query_embedding: np.ndarray) -> Tuple[str, float]:
-        return self.svm_module.identify_speaker(query_embedding)
-    
-    def get_name(self) -> str:
-        return "SVM"
-
 class NeuralNetworkClassifierStrategy(ClassifierStrategy):
     def __init__(self):
         from . import nn_classifier
@@ -61,10 +47,8 @@ class VoiceIdentifier:
 
 def create_classifier_strategy(classifier_type: str) -> ClassifierStrategy:
     classifier_type_lower = classifier_type.lower()
-    if classifier_type_lower == "svm":
-        return SVMClassifierStrategy()
-    elif classifier_type_lower in ["nn", "neural_network", "neuralnetwork"]:
+    if classifier_type_lower in ["nn", "neural_network", "neuralnetwork", "cnn"]:
         return NeuralNetworkClassifierStrategy()
     else:
-        raise ValueError(f"Unknown classifier type: {classifier_type}. Use 'svm' or 'nn'")
+        raise ValueError(f"Unknown classifier type: {classifier_type}. Use 'nn' or 'cnn'")
 

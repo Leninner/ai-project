@@ -17,7 +17,7 @@ El sistema permite la autenticación de usuarios mediante características biom�
 - **Entrenamiento Automático**: Modelos se actualizan automáticamente tras cada registro
 - **Procesamiento Asíncrono**: Entrenamiento en segundo plano, sin bloqueo de la aplicación
 - **Doble Validación Biométrica**: Facial + Voz para mayor seguridad
-- **Arquitectura Modular**: Clasificadores intercambiables (SVM o Neural Network)
+- **Arquitectura Modular**: Clasificadores intercambiables (Neural Network y Redes Neuronales Convolucionales)
 
 ## 2. Arquitectura del Sistema
 
@@ -33,7 +33,7 @@ graph TB
     E --> G[Voice Embedding Extractor]
     F -->|FaceNet 512-dim| H[Facial Classifier]
     G -->|SpeechBrain 192-dim| I[Voice Classifier]
-    H -->|SVM/NN| J[Biometric Validator]
+    H -->|Neural Network/CNN| J[Biometric Validator]
     I -->|SVM/NN| J
     J -->|Resultado| K[Autenticación]
     
@@ -83,8 +83,8 @@ sequenceDiagram
 ```mermaid
 graph LR
     A[Embedding Vector] --> B{Classifier Type}
-    B -->|SVM| C[SVM Classifier]
-    B -->|NN| D[Neural Network]
+    B -->|Neural Network| C[Neural Network]
+    B -->|CNN| D[CNN Classifier]
     C --> E[Label Encoder]
     D --> F[Label Encoder]
     E --> G[Prediction + Confidence]
