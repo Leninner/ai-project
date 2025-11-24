@@ -176,34 +176,13 @@
         </button>
     </div>
 
-    <div class="biometric-section hidden" id="videoPreviewSection">
-        <div class="biometric-header">
-            <div class="biometric-icon">✓</div>
-            <div>
-                <div class="biometric-title">Video grabado exitosamente</div>
-                <div class="biometric-status" id="videoStatus">Revisa tu video abajo</div>
-            </div>
-        </div>
-        <video id="videoPreview" controls
-            style="width: 100%; max-width: 640px; border-radius: 8px; margin: 16px 0;"></video>
-        <div style="display: flex; gap: 12px; justify-content: center;">
-            <button type="button" id="retakeBtn" class="btn" style="background: var(--gray-600);">
-                <span>🔄</span> Volver a grabar video
-            </button>
-            <button type="submit" id="submitBtn" class="btn btn-primary">
-                <span>✓</span> Completar registro
-            </button>
-        </div>
-    </div>
-
-    <input type="file" id="video" name="video" accept="video/*" class="hidden">
-
     <div id="loadingIndicator" class="hidden" style="text-align: center; padding: 20px;">
         <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
-        <div style="font-size: 16px; color: var(--gray-600);">Procesando video y creando cuenta...</div>
+        <div style="font-size: 16px; color: var(--gray-600);">Procesando y creando cuenta...</div>
         <small style="color: var(--gray-600); margin-top: 8px; display: block;">Esto puede tomar un momento</small>
     </div>
 </form>
+
 
 <div class="link">
     Ya tienes una cuenta? <a href="{% url 'login' %}">Inicia sesión aquí</a>
@@ -273,19 +252,29 @@
     const biometricStatus = document.getElementById('biometricStatus');
     const biometricSection = document.getElementById('biometricSection');
     const videoPreviewSection = document.getElementById('videoPreviewSection');
-    const videoInput = document.getElementById('video');
     const recordingTimer = document.getElementById('recordingTimer');
     const recordingProgress = document.getElementById('recordingProgress');
     const recordingProgressFill = document.getElementById('recordingProgressFill');
     const usernameInput = document.getElementById('username');
 
     let stream = null;
-    let mediaRecorder = null;
-    let recordedChunks = [];
+    let websocket = null;
     let recordingStartTime = null;
     let timerInterval = null;
+    let frameInterval = null;
+    let audioInterval = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+
     const MIN_RECORDING_DURATION = 30000;
     const MAX_RECORDING_DURATION = 45000;
+    const FRAME_CAPTURE_INTERVAL = 150; // Capture frame every 150ms (~6-7 fps)
+    const AUDIO_CHUNK_DURATION = 3000; // Send audio every 3 seconds
+    const REQUIRED_FRAMES = 200;
+
+    let framesSent = 0;
+    let framesSaved = 0;
+    let facesDetected = 0;
 
     function checkUsernameField() {
         const username = usernameInput.value.trim();
@@ -310,18 +299,50 @@
             startRecordingBtn.disabled = true;
             startRecordingBtn.innerHTML = '<span>⏳</span> Iniciando cámara...';
 
-            stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-                audio: true
-            });
+            // Initialize WebSocket
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/registration/`;
 
-            video.srcObject = stream;
-            video.classList.remove('hidden');
-            startRecordingBtn.classList.add('hidden');
+            websocket = new WebSocket(wsUrl);
 
-            setTimeout(() => {
-                startRecording();
-            }, 1000);
+            websocket.onopen = async () => {
+                console.log('WebSocket connected');
+
+                // Start camera
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: true
+                });
+
+                video.srcObject = stream;
+                video.classList.remove('hidden');
+                startRecordingBtn.classList.add('hidden');
+
+                // Send start message
+                websocket.send(JSON.stringify({
+                    type: 'start',
+                    username: username
+                }));
+
+                setTimeout(() => {
+                    startRecording();
+                }, 1000);
+            };
+
+            websocket.onmessage = (event) => {
+                handleWebSocketMessage(JSON.parse(event.data));
+            };
+
+            websocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                showToast('Error de conexión WebSocket', 'error', 'Error de Conexión');
+                cleanup();
+            };
+
+            websocket.onclose = () => {
+                console.log('WebSocket closed');
+            };
+
         } catch (err) {
             showToast('Error al acceder a la cámara o micrófono: ' + err.message, 'error', 'Error de Acceso');
             startRecordingBtn.disabled = false;
@@ -330,65 +351,198 @@
         }
     }
 
+    function handleWebSocketMessage(data) {
+        console.log('WebSocket message:', data);
+
+        switch (data.type) {
+            case 'connected':
+                console.log('WebSocket ready');
+                break;
+
+            case 'session_started':
+                console.log('Registration session started');
+                break;
+
+            case 'progress':
+                framesSaved = data.frames_saved;
+                facesDetected = data.faces_detected;
+                updateProgress(data);
+                break;
+
+            case 'audio_saved':
+                console.log(`Audio chunk ${data.audio_count} saved`);
+                break;
+
+            case 'registration_complete':
+                handleRegistrationComplete(data);
+                break;
+
+            case 'error':
+                showToast(data.message, 'error', 'Error de Registro');
+                cleanup();
+                break;
+        }
+    }
+
+    function updateProgress(data) {
+        const progress = (data.frames_saved / REQUIRED_FRAMES) * 100;
+        recordingProgressFill.style.width = progress + '%';
+
+        // Update status text
+        const faceRate = data.frames_saved > 0 ? (data.faces_detected / data.frames_saved * 100).toFixed(0) : 0;
+        biometricStatus.textContent = `Capturando: ${data.frames_saved}/${REQUIRED_FRAMES} frames | Rostros: ${data.faces_detected} (${faceRate}%)`;
+
+        // Visual feedback for face detection
+        if (data.face_detected) {
+            video.style.border = '4px solid #27ae60';
+            setTimeout(() => {
+                video.style.border = '';
+            }, 200);
+        }
+
+        // Auto-stop when we have enough frames
+        if (data.frames_saved >= REQUIRED_FRAMES) {
+            stopRecording();
+        }
+    }
+
     function startRecording() {
-        recordedChunks = [];
-        mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'video/webm;codecs=vp9,opus'
-        });
-
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                recordedChunks.push(event.data);
-            }
-        };
-
-        mediaRecorder.onstop = () => {
-            const blob = new Blob(recordedChunks, { type: 'video/webm' });
-            const file = new File([blob], 'registration.webm', { type: 'video/webm' });
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            videoInput.files = dataTransfer.files;
-
-            const videoUrl = URL.createObjectURL(blob);
-            videoPreview.src = videoUrl;
-
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            video.classList.add('hidden');
-            stopRecordingBtn.classList.add('hidden');
-            recordingTimer.classList.add('hidden');
-            recordingProgress.classList.add('hidden');
-            document.getElementById('readingText').classList.add('hidden');
-            biometricSection.classList.add('hidden');
-            videoPreviewSection.classList.remove('hidden');
-        };
-
         recordingStartTime = Date.now();
-        mediaRecorder.start();
+        framesSent = 0;
+        framesSaved = 0;
+        facesDetected = 0;
 
         stopRecordingBtn.classList.remove('hidden');
         recordingTimer.classList.remove('hidden');
         recordingProgress.classList.remove('hidden');
 
+        // Start frame capture
+        frameInterval = setInterval(captureFrame, FRAME_CAPTURE_INTERVAL);
+
+        // Start audio recording
+        startAudioRecording();
+
+        // Update timer
         updateTimer();
         timerInterval = setInterval(updateTimer, 100);
 
+        // Auto-stop at max duration
         setTimeout(() => {
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
+            if (frameInterval) {
                 stopRecording();
             }
         }, MAX_RECORDING_DURATION);
     }
+
+    function captureFrame() {
+        if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+            return;
+        }
+
+        // Create canvas to capture frame
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+
+        // Convert to base64 JPEG
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+        // Send to WebSocket
+        websocket.send(JSON.stringify({
+            type: 'frame',
+            image: imageData,
+            timestamp: Date.now()
+        }));
+
+        framesSent++;
+    }
+
+    function startAudioRecording() {
+        try {
+            audioChunks = [];
+
+            // Get only audio track from stream
+            const audioStream = new MediaStream(stream.getAudioTracks());
+
+            // Check if we have audio tracks
+            if (audioStream.getAudioTracks().length === 0) {
+                console.error('No audio tracks available');
+                showToast('No se detectó micrófono', 'warning', 'Audio no disponible', 3000);
+                return;
+            }
+
+            console.log('Starting audio recording with', audioStream.getAudioTracks().length, 'audio tracks');
+
+            mediaRecorder = new MediaRecorder(audioStream, {
+                mimeType: 'audio/webm;codecs=opus'
+            });
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    console.log('Audio chunk received:', event.data.size, 'bytes');
+                    audioChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                if (audioChunks.length > 0) {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    console.log('Sending audio chunk:', audioBlob.size, 'bytes');
+                    sendAudioChunk(audioBlob);
+                    audioChunks = [];
+                }
+            };
+
+            mediaRecorder.onerror = (event) => {
+                console.error('MediaRecorder error:', event.error);
+            };
+
+            // Start recording and send chunks periodically
+            mediaRecorder.start();
+            console.log('MediaRecorder started');
+
+            audioInterval = setInterval(() => {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    console.log('Stopping and restarting audio recording for chunk');
+                    mediaRecorder.stop();
+                    mediaRecorder.start();
+                }
+            }, AUDIO_CHUNK_DURATION);
+        } catch (error) {
+            console.error('Error starting audio recording:', error);
+            showToast('Error al iniciar grabación de audio: ' + error.message, 'error', 'Error de Audio', 3000);
+        }
+    }
+
+    function sendAudioChunk(audioBlob) {
+        if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+            console.warn('WebSocket not ready, cannot send audio');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64Audio = reader.result;
+            console.log('Sending audio via WebSocket');
+            websocket.send(JSON.stringify({
+                type: 'audio',
+                audio: base64Audio
+            }));
+        };
+        reader.onerror = (error) => {
+            console.error('Error reading audio blob:', error);
+        };
+        reader.readAsDataURL(audioBlob);
+    }
+
 
     function updateTimer() {
         const elapsed = Date.now() - recordingStartTime;
         const seconds = Math.floor(elapsed / 1000);
         const milliseconds = Math.floor((elapsed % 1000) / 100);
         recordingTimer.textContent = `${String(seconds).padStart(2, '0')}:${milliseconds}`;
-
-        const progress = Math.min((elapsed / MAX_RECORDING_DURATION) * 100, 100);
-        recordingProgressFill.style.width = progress + '%';
 
         if (elapsed >= MIN_RECORDING_DURATION) {
             stopRecordingBtn.innerHTML = '<span>✓</span> Detener grabación (Listo)';
@@ -401,96 +555,111 @@
 
         if (elapsed < MIN_RECORDING_DURATION) {
             const remaining = Math.ceil((MIN_RECORDING_DURATION - elapsed) / 1000);
-            showToast(`Por favor graba por al menos ${remaining} segundos más. Se necesitan al menos 30 segundos para capturar suficientes muestras de tu voz y rostro.`, 'warning', 'Video muy corto', 0);
+            showToast(`Por favor graba por al menos ${remaining} segundos más.`, 'warning', 'Video muy corto', 3000);
             return;
         }
 
+        // Stop intervals
         clearInterval(timerInterval);
+        clearInterval(frameInterval);
+        clearInterval(audioInterval);
+
+        // Stop media recorder
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             mediaRecorder.stop();
         }
+
+        // Stop camera
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+
+        // Hide recording UI
+        video.classList.add('hidden');
+        stopRecordingBtn.classList.add('hidden');
+        recordingTimer.classList.add('hidden');
+        recordingProgress.classList.add('hidden');
+        document.getElementById('readingText').classList.add('hidden');
+
+        // Show loading
+        document.getElementById('loadingIndicator').classList.remove('hidden');
+        biometricStatus.textContent = 'Procesando y finalizando registro...';
+
+        // Send completion message
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            websocket.send(JSON.stringify({
+                type: 'complete'
+            }));
+        }
     }
 
-    function retakeVideo() {
-        videoPreviewSection.classList.add('hidden');
+    function handleRegistrationComplete(data) {
+        document.getElementById('loadingIndicator').classList.add('hidden');
+
+        if (data.success) {
+            showToast(data.message, 'success', 'Registro Exitoso', 3000);
+            setTimeout(() => {
+                window.location.href = data.redirect;
+            }, 1500);
+        } else {
+            showToast('Error al completar el registro', 'error', 'Error');
+            cleanup();
+        }
+    }
+
+    function cleanup() {
+        if (frameInterval) clearInterval(frameInterval);
+        if (timerInterval) clearInterval(timerInterval);
+        if (audioInterval) clearInterval(audioInterval);
+
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+        }
+
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+
+        if (websocket) {
+            websocket.close();
+        }
+
+        // Reset UI
+        video.classList.add('hidden');
+        stopRecordingBtn.classList.add('hidden');
+        recordingTimer.classList.add('hidden');
+        recordingProgress.classList.add('hidden');
+        document.getElementById('readingText').classList.add('hidden');
+        document.getElementById('loadingIndicator').classList.add('hidden');
         biometricSection.classList.remove('hidden');
         startRecordingBtn.classList.remove('hidden');
         startRecordingBtn.disabled = false;
         startRecordingBtn.innerHTML = '<span>🎬</span> Iniciar grabación (30-45 seg)';
-        document.getElementById('readingText').classList.add('hidden');
-        recordedChunks = [];
-        videoInput.value = '';
     }
 
-    async function submitForm(event) {
-        event.preventDefault();
-
-        const username = usernameInput.value.trim();
-        const videoFile = videoInput.files[0];
-
-        if (!username || !videoFile) {
-            alert('Por favor completa todos los campos y graba un video');
-            return;
-        }
-
-        document.getElementById('loadingIndicator').classList.remove('hidden');
-        document.getElementById('registerForm').style.opacity = '0.5';
-        document.getElementById('registerForm').style.pointerEvents = 'none';
-
-        const formData = new FormData();
-        formData.append('username', username);
-        formData.append('video', videoFile);
-
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        formData.append('csrfmiddlewaretoken', csrfToken);
-
-        try {
-            const response = await fetch('{% url "register" %}', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                showToast('Registro exitoso. Redirigiendo al inicio de sesión...', 'success', 'Cuenta Creada', 2000);
-                setTimeout(() => {
-                    window.location.href = data.redirect;
-                }, 1000);
-            } else {
-                showToast(data.error || 'Registro fallido', 'error', 'Error de Registro');
-
-                document.getElementById('loadingIndicator').classList.add('hidden');
-                document.getElementById('registerForm').style.opacity = '1';
-                document.getElementById('registerForm').style.pointerEvents = 'auto';
-            }
-        } catch (error) {
-            showToast('Error al procesar la solicitud: ' + error.message, 'error', 'Error del Sistema');
-
-            document.getElementById('loadingIndicator').classList.add('hidden');
-            document.getElementById('registerForm').style.opacity = '1';
-            document.getElementById('registerForm').style.pointerEvents = 'auto';
-        }
+    function retakeVideo() {
+        cleanup();
+        framesSent = 0;
+        framesSaved = 0;
+        facesDetected = 0;
     }
 
+    // Event listeners
     usernameInput.addEventListener('input', checkUsernameField);
     startRecordingBtn.addEventListener('click', initializeCamera);
     stopRecordingBtn.addEventListener('click', stopRecording);
-    retakeBtn.addEventListener('click', retakeVideo);
-    document.getElementById('registerForm').addEventListener('submit', submitForm);
+
+    // Prevent form submission (we handle everything via WebSocket)
+    document.getElementById('registerForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+    });
+
 
     checkUsernameField();
 
     window.addEventListener('beforeunload', () => {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-        }
-        if (timerInterval) {
-            clearInterval(timerInterval);
-        }
+        cleanup();
     });
+
 </script>
 {% endblock %}
