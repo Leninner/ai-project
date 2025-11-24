@@ -48,8 +48,23 @@ makemigrations: ## Create Django database migrations
 migrate: ## Run Django database migrations
 	cd src && uv run python manage.py migrate
 
-runserver: ## Run Django development server
+run: ## Run Django development server (WSGI)
 	cd src && uv run python manage.py runserver
+
+runws: ## Run Django with WebSocket support (Daphne ASGI)
+	cd src && uv run daphne -b 0.0.0.0 -p 8000 auth_platform.asgi:application
+
+shell: ## Open Django shell
+	cd src && uv run python manage.py shell
+
+test: ## Run tests
+	cd src && uv run python manage.py test
+
+clean: ## Clean Python cache files
+	find . -type f -name "*.pyc" -delete
+	find . -type d -name "__pycache__" -delete
+	find . -type d -name ".pytest_cache" -delete
+	rm -rf .ruff_cache
 
 createsuperuser: ## Create Django superuser
 	cd src && uv run python manage.py createsuperuser

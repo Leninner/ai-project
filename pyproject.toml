@@ -23,4 +23,7 @@ dependencies = [
     "opencv-python>=4.8.0",
     "noisereduce>=3.0.0",
     "tensorboard>=2.15.0",
+    "channels>=4.0.0",
+    "daphne>=4.0.0",
+    "channels-redis>=4.1.0",
 ]

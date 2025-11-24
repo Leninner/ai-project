@@ -34,12 +34,14 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "channels",
     "authentication",
 ]
 
@@ -72,6 +74,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "auth_platform.wsgi.application"
+ASGI_APPLICATION = "auth_platform.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
 
 DATABASES = {
     "default": {

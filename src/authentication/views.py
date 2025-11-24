@@ -88,3 +88,41 @@ def dashboard_view(request):
 def logout_view(request):
     request.session.flush()
     return redirect("login")
+
+
+@require_http_methods(["POST"])
+def establish_session_view(request):
+    """
+    Establish Django session using one-time token from WebSocket authentication.
+    """
+    import json
+    from django.core.cache import cache
+    
+    try:
+        data = json.loads(request.body)
+        token = data.get("token")
+        
+        if not token:
+            return JsonResponse({"success": False, "error": "Token required"}, status=400)
+        
+        # Retrieve user_id from cache using token
+        cache_key = f"auth_token:{token}"
+        user_id = cache.get(cache_key)
+        
+        if not user_id:
+            return JsonResponse({"success": False, "error": "Invalid or expired token"}, status=401)
+        
+        # Delete token (one-time use)
+        cache.delete(cache_key)
+        
+        # Establish session
+        request.session["user_id"] = user_id
+        request.session.save()
+        
+        return JsonResponse({"success": True, "message": "Session established"})
+        
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+

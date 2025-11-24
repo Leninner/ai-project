@@ -9,27 +9,16 @@
         top: 20px;
         right: 20px;
         z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
     }
 
     .toast {
         min-width: 300px;
-        max-width: 500px;
         padding: 16px 20px;
         background: white;
         border-radius: 8px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        animation: slideIn 0.3s ease-out;
-        border-left: 4px solid;
-    }
-
-    .toast.error {
-        border-left-color: #e74c3c;
+        margin-bottom: 10px;
+        border-left: 4px solid #e74c3c;
     }
 
     .toast.success {
@@ -38,78 +27,6 @@
 
     .toast.warning {
         border-left-color: #f39c12;
-    }
-
-    .toast-icon {
-        font-size: 24px;
-        flex-shrink: 0;
-    }
-
-    .toast-content {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .toast-title {
-        font-weight: 600;
-        font-size: 14px;
-        color: #2c3e50;
-    }
-
-    .toast-message {
-        font-size: 13px;
-        color: #5a6c7d;
-        line-height: 1.4;
-    }
-
-    .toast-close {
-        background: none;
-        border: none;
-        font-size: 20px;
-        color: #95a5a6;
-        cursor: pointer;
-        padding: 0;
-        width: 24px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        transition: color 0.2s;
-    }
-
-    .toast-close:hover {
-        color: #2c3e50;
-    }
-
-    @keyframes slideIn {
-        from {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    @keyframes slideOut {
-        from {
-            transform: translateX(0);
-            opacity: 1;
-        }
-
-        to {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-    }
-
-    .toast.closing {
-        animation: slideOut 0.3s ease-out forwards;
     }
 
     .video-container {
@@ -122,70 +39,46 @@
         background: #000;
     }
 
-    .video-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        z-index: 10;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: opacity 0.3s ease-out;
-    }
-
-    .video-overlay.hidden {
-        opacity: 0;
-        pointer-events: none;
-    }
-
-    .video-overlay-text {
-        color: white;
-        font-size: 16px;
-        text-align: center;
-        padding: 20px;
-    }
-
     #video {
         width: 100%;
         height: auto;
         display: block;
     }
 
-    .reading-text-prompt {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(0, 0, 0, 0.85);
-        color: white;
-        padding: 16px 24px;
+    .status-box {
+        margin-top: 16px;
+        padding: 16px;
+        background: #f8f9fa;
         border-radius: 8px;
-        font-size: 18px;
-        font-weight: 600;
         text-align: center;
-        z-index: 15;
-        max-width: 90%;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        animation: fadeInUp 0.5s ease-out;
     }
 
-    .reading-text-prompt.hidden {
-        display: none;
+    .status-message {
+        font-size: 16px;
+        font-weight: 500;
+        color: #2c3e50;
+        margin-bottom: 8px;
     }
 
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateX(-50%) translateY(20px);
-        }
+    .status-detail {
+        font-size: 14px;
+        color: #6c757d;
+    }
 
-        to {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: #e0e0e0;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 12px;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        width: 0%;
+        transition: width 0.3s ease;
     }
 </style>
 {% endblock %}
@@ -193,7 +86,7 @@
 {% block content %}
 <div class="toast-container" id="toastContainer"></div>
 
-<form method="post" enctype="multipart/form-data" id="loginForm">
+<form id="loginForm">
     {% csrf_token %}
 
     <div class="form-group">
@@ -205,57 +98,28 @@
         <div class="biometric-header">
             <div class="biometric-icon">🎥</div>
             <div>
-                <div class="biometric-title">Autenticación por video (3 segundos)</div>
-                <div class="biometric-status" id="biometricStatus">
-                    Graba un video corto mostrando tu cara mientras hablas
+                <div class="biometric-title">Autenticación Biométrica</div>
+                <div class="biometric-status" id="statusText">
+                    Presiona el botón para iniciar
                 </div>
-                <div id="validationFeedback" class="hidden"
-                    style="margin-top: 12px; padding: 12px; border-radius: 8px; background: #f8f9fa;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                        <span id="faceIndicator" style="font-size: 20px;">⚪</span>
-                        <span id="faceText" style="color: #6c757d;">Detectando rostro...</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span id="voiceIndicator" style="font-size: 20px;">⚪</span>
-                        <span id="voiceText" style="color: #6c757d;">Detectando voz...</span>
-                    </div>
-                </div>
-                <small style="color: var(--gray-600); font-size: 12px; margin-top: 8px; display: block;">
-                    📌 Mantén tu cara visible<br>
-                    🎤 Di: "Soy [tu nombre] y quiero iniciar sesión"
-                </small>
             </div>
         </div>
-        <button type="button" id="startRecordingBtn" class="btn btn-primary">
-            <span>🎬</span> Iniciar grabación (3 seg)
+
+        <button type="button" id="startAuthBtn" class="btn btn-primary">
+            <span>🚀</span> Iniciar Autenticación
         </button>
+
         <div class="video-container hidden" id="videoContainer">
             <video id="video" autoplay playsinline muted></video>
-            <div class="video-overlay" id="videoOverlay">
-                <div class="video-overlay-text">
-                    <div style="font-size: 32px; margin-bottom: 12px;">⏳</div>
-                    <div>Cargando cámara y micrófono...</div>
-                </div>
-            </div>
-            <div class="reading-text-prompt hidden" id="readingTextPrompt">
-                <div id="readingTextContent">Lee este texto durante la grabación</div>
-            </div>
         </div>
-        <div id="recordingTimer" class="hidden"
-            style="text-align: center; font-size: 24px; font-weight: bold; color: #e74c3c; margin: 16px 0;">
-            00:00
-        </div>
-        <div class="progress-bar hidden" id="recordingProgress">
-            <div class="progress-fill" id="recordingProgressFill"></div>
-        </div>
-    </div>
 
-    <input type="file" id="videoFileInput" name="video" accept="video/*" class="hidden">
-
-    <div id="loadingIndicator" class="hidden" style="text-align: center; padding: 20px;">
-        <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
-        <div style="font-size: 16px; color: var(--gray-600);">Verificando datos biométricos...</div>
-        <small style="color: var(--gray-600); margin-top: 8px; display: block;">Esto puede tomar un momento</small>
+        <div class="status-box hidden" id="statusBox">
+            <div class="status-message" id="statusMessage">Conectando...</div>
+            <div class="status-detail" id="statusDetail"></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
     </div>
 </form>
 
@@ -267,413 +131,387 @@
 {% block extra_js %}
 <script>
     const toastContainer = document.getElementById('toastContainer');
-
-    function showToast(message, type = 'error', title = null, duration = 5000) {
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-
-        const icons = {
-            error: '❌',
-            success: '✅',
-            warning: '⚠️'
-        };
-
-        const titles = {
-            error: title || 'Error',
-            success: title || 'Éxito',
-            warning: title || 'Advertencia'
-        };
-
-        toast.innerHTML = `
-            <span class="toast-icon">${icons[type]}</span>
-            <div class="toast-content">
-                <div class="toast-title">${titles[type]}</div>
-                <div class="toast-message">${message}</div>
-            </div>
-            <button class="toast-close" aria-label="Cerrar">×</button>
-        `;
-
-        const closeBtn = toast.querySelector('.toast-close');
-        closeBtn.addEventListener('click', () => {
-            closeToast(toast);
-        });
-
-        toastContainer.appendChild(toast);
-
-        if (duration > 0) {
-            setTimeout(() => {
-                closeToast(toast);
-            }, duration);
-        }
-
-        return toast;
-    }
-
-    function closeToast(toast) {
-        toast.classList.add('closing');
-        setTimeout(() => {
-            if (toast.parentElement) {
-                toast.parentElement.removeChild(toast);
-            }
-        }, 300);
-    }
-
     const video = document.getElementById('video');
-    const startRecordingBtn = document.getElementById('startRecordingBtn');
-    const biometricStatus = document.getElementById('biometricStatus');
-    const biometricSection = document.getElementById('biometricSection');
-    const videoInput = document.querySelector('input[name="video"]');
-    const recordingTimer = document.getElementById('recordingTimer');
-    const recordingProgress = document.getElementById('recordingProgress');
-    const recordingProgressFill = document.getElementById('recordingProgressFill');
+    const startAuthBtn = document.getElementById('startAuthBtn');
+    const statusText = document.getElementById('statusText');
     const usernameInput = document.getElementById('username');
     const videoContainer = document.getElementById('videoContainer');
-    const videoOverlay = document.getElementById('videoOverlay');
-    const readingTextPrompt = document.getElementById('readingTextPrompt');
-    const readingTextContent = document.getElementById('readingTextContent');
+    const statusBox = document.getElementById('statusBox');
+    const statusMessage = document.getElementById('statusMessage');
+    const statusDetail = document.getElementById('statusDetail');
+    const progressFill = document.getElementById('progressFill');
 
+    let ws = null;
     let stream = null;
+    let frameInterval = null;
     let mediaRecorder = null;
-    let recordedChunks = [];
-    let recordingStartTime = null;
-    let timerInterval = null;
-    let validationInterval = null;
-    let audioContext = null;
-    let audioAnalyser = null;
-    let faceDetected = false;
-    let voiceDetected = false;
-    let faceDetectionCount = 0;
-    let voiceDetectionCount = 0;
-    let bothDetected = false;
-    const RECORDING_DURATION = 3000;
-    const MIN_FACE_DETECTIONS = 5;
-    const MIN_VOICE_DETECTIONS = 3;
-    const AUDIO_THRESHOLD = 0.01;
-    const READING_TEXT = "Soy [tu nombre] y quiero iniciar sesión en esta plataforma de autenticación biométrica";
+    let audioChunks = [];
+    let authenticated = false;
+    let faceConfirmations = 0;
+    let requiredConfirmations = 3;
+    let voiceAttempts = 0;
 
-    function checkUsernameField() {
+    function showToast(message, type = 'error') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <div style="font-weight: 600; margin-bottom: 4px;">
+                ${type === 'error' ? '❌ Error' : type === 'success' ? '✅ Éxito' : '⚠️ Aviso'}
+            </div>
+            <div style="font-size: 13px;">${message}</div>
+        `;
+        toastContainer.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    function updateProgress(current, total = 2) {
+        // Progress: face confirmations + voice = 2 stages
+        const faceProgress = Math.min(faceConfirmations / requiredConfirmations, 1) * 50;
+        const voiceProgress = authenticated ? 50 : 0;
+        const progress = faceProgress + voiceProgress;
+        progressFill.style.width = progress + '%';
+    }
+
+    async function connectWebSocket() {
         const username = usernameInput.value.trim();
-        if (username) {
-            startRecordingBtn.disabled = false;
-        } else {
-            startRecordingBtn.disabled = true;
+        if (!username) {
+            showToast('Por favor ingresa tu nombre de usuario');
+            return false;
+        }
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/liveness/`;
+
+        statusMessage.textContent = 'Conectando al servidor...';
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            console.log('WebSocket conectado');
+            statusMessage.textContent = 'Conectado ✅';
+
+            ws.send(JSON.stringify({
+                type: 'start',
+                username: username
+            }));
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            handleMessage(data);
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            showToast('Error de conexión WebSocket');
+            statusMessage.textContent = 'Error de conexión ❌';
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket cerrado');
+            if (!authenticated) {
+                statusMessage.textContent = 'Conexión cerrada';
+            }
+        };
+
+        return new Promise((resolve) => {
+            ws.addEventListener('open', () => resolve(true), { once: true });
+            ws.addEventListener('error', () => resolve(false), { once: true });
+        });
+    }
+
+    function handleMessage(data) {
+        console.log('WebSocket:', data);
+
+        switch (data.type) {
+            case 'connected':
+            case 'session_started':
+                statusMessage.textContent = data.message;
+                statusDetail.textContent = 'Mostrando tu rostro a la cámara...';
+                break;
+
+            case 'face_result':
+                if (data.face_detected) {
+                    if (data.recognized && data.matches_claim) {
+                        faceConfirmations = data.confirmations || 0;
+                        requiredConfirmations = data.required || 3;
+                        statusMessage.textContent = `Reconociendo rostro... ${faceConfirmations}/${requiredConfirmations}`;
+                        statusDetail.textContent = `${data.username} (${(data.confidence * 100).toFixed(0)}%)`;
+                        updateProgress();
+                    } else {
+                        statusDetail.textContent = data.message;
+                    }
+                } else {
+                    statusDetail.textContent = 'No se detecta rostro - mira a la cámara';
+                }
+                break;
+
+            case 'face_authenticated':
+                statusMessage.textContent = data.message;
+                statusDetail.textContent = `Confianza: ${(data.confidence * 100).toFixed(0)}%`;
+                updateProgress();
+
+                // Start audio recording
+                startAudioRecording();
+                break;
+
+            case 'voice_result':
+                if (data.recognized) {
+                    statusMessage.textContent = data.message;
+                    statusDetail.textContent = '';
+                    updateProgress();
+                } else if (data.retry) {
+                    // Retry voice authentication
+                    voiceAttempts++;
+                    statusMessage.textContent = `🎤 Intento ${voiceAttempts}: ${data.message}`;
+                    statusDetail.textContent = 'Preparando nueva grabación...';
+                    showToast(data.message, 'warning');
+
+                    // Wait 1 second then retry
+                    setTimeout(() => {
+                        startAudioRecording();
+                    }, 1000);
+                } else {
+                    showToast(data.message, 'error');
+                    statusMessage.textContent = 'Autenticación de voz falló';
+                }
+                break;
+
+            case 'authentication_complete':
+                authenticated = true;
+                statusMessage.textContent = '✅ ' + data.message;
+                statusDetail.textContent = 'Estableciendo sesión...';
+                updateProgress();
+                showToast(data.message, 'success');
+
+                stopCamera();
+
+                // Establish session before redirect
+                establishSession(data.session_token, data.redirect);
+                break;
+
+            case 'error':
+                showToast(data.message, 'error');
+                statusMessage.textContent = 'Error';
+                statusDetail.textContent = data.message;
+                break;
         }
     }
 
-    async function initializeCamera() {
-        const username = usernameInput.value.trim();
-        if (!username) {
-            alert('Por favor ingresa tu nombre de usuario primero');
+    async function startAuthentication() {
+        startAuthBtn.disabled = true;
+
+        // Connect WebSocket
+        const connected = await connectWebSocket();
+        if (!connected) {
+            startAuthBtn.disabled = false;
             return;
         }
 
+        // Start camera
         try {
-            startRecordingBtn.disabled = true;
-            startRecordingBtn.innerHTML = '<span>⏳</span> Iniciando cámara...';
-
             stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: true
             });
 
             video.srcObject = stream;
             videoContainer.classList.remove('hidden');
-            startRecordingBtn.classList.add('hidden');
-            document.getElementById('validationFeedback').classList.remove('hidden');
-            biometricStatus.textContent = 'Validando presencia...';
+            statusBox.classList.remove('hidden');
+            startAuthBtn.classList.add('hidden');
 
-            await setupAudioAnalysis(stream);
-
-            await new Promise(resolve => {
-                const checkReady = setInterval(() => {
-                    if (video.readyState >= 2 && audioContext && audioContext.state === 'running') {
-                        clearInterval(checkReady);
-                        videoOverlay.classList.add('hidden');
-                        resolve();
-                    }
-                }, 100);
+            await new Promise((resolve) => {
+                video.onloadedmetadata = resolve;
             });
 
-            startValidation();
+            startFrameCapture();
 
-            setTimeout(() => {
-                if (faceDetectionCount >= MIN_FACE_DETECTIONS && voiceDetectionCount >= MIN_VOICE_DETECTIONS) {
-                    startRecording();
-                } else {
-                    stopValidation();
-                    stream.getTracks().forEach(track => track.stop());
-                    videoContainer.classList.add('hidden');
-                    videoOverlay.classList.remove('hidden');
-                    readingTextPrompt.classList.add('hidden');
-                    startRecordingBtn.classList.remove('hidden');
-                    document.getElementById('validationFeedback').classList.add('hidden');
-                    startRecordingBtn.disabled = false;
-                    startRecordingBtn.innerHTML = '<span>🎬</span> Iniciar grabación (3 seg)';
-                    bothDetected = false;
-
-                    let errorMsg = 'No se pudo validar tu presencia:\n';
-                    if (faceDetectionCount < MIN_FACE_DETECTIONS) errorMsg += '- Mantén tu rostro visible\n';
-                    if (voiceDetectionCount < MIN_VOICE_DETECTIONS) errorMsg += '- Habla claramente';
-                    alert(errorMsg);
-                }
-            }, 3000);
         } catch (err) {
-            alert('Error al acceder a la cámara o micrófono: ' + err.message);
-            startRecordingBtn.disabled = false;
-            startRecordingBtn.innerHTML = '<span>🎬</span> Iniciar grabación (3 seg)';
-            videoContainer.classList.add('hidden');
-            videoOverlay.classList.remove('hidden');
+            showToast('Error al acceder a la cámara: ' + err.message);
+            startAuthBtn.disabled = false;
+            if (ws) ws.close();
         }
     }
 
-    async function setupAudioAnalysis(mediaStream) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(mediaStream);
-        audioAnalyser = audioContext.createAnalyser();
-        audioAnalyser.fftSize = 256;
-        source.connect(audioAnalyser);
-    }
-
-    function detectVoice() {
-        if (!audioAnalyser) return false;
-
-        const bufferLength = audioAnalyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        audioAnalyser.getByteFrequencyData(dataArray);
-
-        const average = dataArray.reduce((a, b) => a + b) / bufferLength / 255;
-        return average > AUDIO_THRESHOLD;
-    }
-
-    function detectFace() {
+    function startFrameCapture() {
         const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d');
 
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        // Send frame every 300ms (~3 FPS)
+        frameInterval = setInterval(() => {
+            if (!video.videoWidth || !video.videoHeight) return;
 
-        if (canvas.width === 0 || canvas.height === 0) return false;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
 
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
 
-        let skinPixels = 0;
-        let totalPixels = data.length / 4;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'frame',
+                    username: usernameInput.value.trim(),
+                    image: imageData
+                }));
+            }
+        }, 300);
+    }
 
-        for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
+    function getSupportedMimeType() {
+        const types = [
+            'audio/webm',
+            'audio/webm;codecs=opus',
+            'audio/mp4',
+            'audio/ogg',
+            'audio/wav',
+            'audio/aac'
+        ];
 
-            if (r > 95 && g > 40 && b > 20 &&
-                r > g && r > b &&
-                Math.abs(r - g) > 15) {
-                skinPixels++;
+        for (const type of types) {
+            if (MediaRecorder.isTypeSupported(type)) {
+                return type;
             }
         }
-
-        const skinPercentage = skinPixels / totalPixels;
-        return skinPercentage > 0.1;
+        return ''; // Let the browser choose default
     }
 
-    function startValidation() {
-        faceDetectionCount = 0;
-        voiceDetectionCount = 0;
-        bothDetected = false;
+    function startAudioRecording() {
+        if (!stream) return;
 
-        validationInterval = setInterval(() => {
-            const hasFace = detectFace();
-            const hasVoice = detectVoice();
+        statusMessage.textContent = '🎤 Grabando audio...';
+        statusDetail.textContent = 'Di: "Soy [tu nombre] y quiero iniciar sesión"';
 
-            if (hasFace) {
-                faceDetectionCount++;
-                faceDetected = true;
-                document.getElementById('faceIndicator').textContent = '✅';
-                document.getElementById('faceText').textContent = 'Rostro detectado';
-                document.getElementById('faceText').style.color = '#28a745';
-            } else {
-                document.getElementById('faceIndicator').textContent = '⚠️';
-                document.getElementById('faceText').textContent = 'Buscando rostro...';
-                document.getElementById('faceText').style.color = '#ffc107';
-            }
+        audioChunks = [];
 
-            if (hasVoice) {
-                voiceDetectionCount++;
-                voiceDetected = true;
-                document.getElementById('voiceIndicator').textContent = '✅';
-                document.getElementById('voiceText').textContent = 'Voz detectada';
-                document.getElementById('voiceText').style.color = '#28a745';
-            } else {
-                document.getElementById('voiceIndicator').textContent = '⚠️';
-                document.getElementById('voiceText').textContent = 'Esperando voz...';
-                document.getElementById('voiceText').style.color = '#ffc107';
-            }
-
-            if (hasFace && hasVoice && !bothDetected) {
-                bothDetected = true;
-                const username = usernameInput.value.trim();
-                const personalizedText = READING_TEXT.replace('[tu nombre]', username);
-                readingTextContent.textContent = personalizedText;
-                readingTextPrompt.classList.remove('hidden');
-            }
-        }, 200);
-    }
-
-    function stopValidation() {
-        if (validationInterval) {
-            clearInterval(validationInterval);
-            validationInterval = null;
-        }
-        if (audioContext) {
-            audioContext.close();
-            audioContext = null;
-        }
-    }
-
-    function startRecording() {
-        stopValidation();
-        document.getElementById('validationFeedback').classList.add('hidden');
-
-        recordedChunks = [];
-        mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'video/webm;codecs=vp9,opus'
-        });
-
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                recordedChunks.push(event.data);
-            }
-        };
-
-        mediaRecorder.onstop = async () => {
-            const blob = new Blob(recordedChunks, { type: 'video/webm' });
-            const file = new File([blob], 'authentication.webm', { type: 'video/webm' });
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            videoInput.files = dataTransfer.files;
-
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            videoContainer.classList.add('hidden');
-            readingTextPrompt.classList.add('hidden');
-            recordingTimer.classList.add('hidden');
-            recordingProgress.classList.add('hidden');
-
-            clearInterval(timerInterval);
-            biometricSection.classList.add('hidden');
-
-            await submitFormAutomatically();
-        };
-
-        recordingStartTime = Date.now();
-        mediaRecorder.start();
-
-        recordingTimer.classList.remove('hidden');
-        recordingProgress.classList.remove('hidden');
-        biometricStatus.textContent = 'Grabando...';
-
-        updateTimer();
-        timerInterval = setInterval(updateTimer, 100);
-
-        setTimeout(() => {
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
-            }
-        }, RECORDING_DURATION);
-    }
-
-    function updateTimer() {
-        const elapsed = Date.now() - recordingStartTime;
-        const seconds = Math.floor(elapsed / 1000);
-        const milliseconds = Math.floor((elapsed % 1000) / 100);
-        recordingTimer.textContent = `${String(seconds).padStart(2, '0')}:${milliseconds}`;
-
-        const progress = Math.min((elapsed / RECORDING_DURATION) * 100, 100);
-        recordingProgressFill.style.width = progress + '%';
-
-        biometricStatus.textContent = `Grabando... ${3 - seconds}s restantes`;
-    }
-
-    async function submitFormAutomatically() {
-        const username = usernameInput.value.trim();
-        const videoFile = videoInput.files[0];
-
-        if (!username || !videoFile) {
-            alert('Por favor completa todos los campos y graba un video');
+        // Extract only audio tracks from the stream
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length === 0) {
+            showToast('No se encontró pista de audio');
             return;
         }
 
-        document.getElementById('loadingIndicator').classList.remove('hidden');
-        document.getElementById('loginForm').style.opacity = '0.5';
-        document.getElementById('loginForm').style.pointerEvents = 'none';
+        // Create an audio-only stream
+        const audioStream = new MediaStream(audioTracks);
 
-        const formData = new FormData();
-        formData.append('username', username);
-        formData.append('video', videoFile);
-
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        formData.append('csrfmiddlewaretoken', csrfToken);
+        const options = {};
+        const mimeType = getSupportedMimeType();
+        if (mimeType) {
+            options.mimeType = mimeType;
+            console.log('Using MIME type:', mimeType);
+        }
 
         try {
-            const response = await fetch('{% url "login" %}', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
+            mediaRecorder = new MediaRecorder(audioStream, options);
+        } catch (e) {
+            console.error('MediaRecorder error:', e);
+            showToast('Error al iniciar grabación: ' + e.message);
+            return;
+        }
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        };
+
+        mediaRecorder.onstop = () => {
+            const blobType = mediaRecorder.mimeType || 'audio/webm';
+            const audioBlob = new Blob(audioChunks, { type: blobType });
+
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'audio',
+                        username: usernameInput.value.trim(),
+                        audio: reader.result
+                    }));
                 }
+            };
+            reader.readAsDataURL(audioBlob);
+        };
+
+        mediaRecorder.start();
+
+        // Record for 3 seconds
+        setTimeout(() => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                statusMessage.textContent = 'Procesando audio...';
+            }
+        }, 3000);
+    }
+
+    async function establishSession(token, redirectUrl) {
+        try {
+            statusDetail.textContent = 'Estableciendo sesión...';
+
+            const response = await fetch('/api/establish-session/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ token: token })
             });
 
-            const data = await response.json();
+            const result = await response.json();
 
-            if (data.success) {
-                showToast('Autenticación exitosa. Redirigiendo...', 'success', 'Bienvenido', 2000);
+            if (result.success) {
+                statusDetail.textContent = 'Redirigiendo...';
                 setTimeout(() => {
-                    window.location.href = data.redirect;
-                }, 1000);
+                    window.location.href = redirectUrl;
+                }, 500);
             } else {
-                showToast(data.error || 'Autenticación fallida', 'error', 'Error de Autenticación');
-
-                document.getElementById('loadingIndicator').classList.add('hidden');
-                document.getElementById('loginForm').style.opacity = '1';
-                document.getElementById('loginForm').style.pointerEvents = 'auto';
-
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
+                showToast('Error al establecer sesión: ' + result.error, 'error');
+                statusMessage.textContent = 'Error de sesión';
             }
         } catch (error) {
-            showToast('Error al procesar la solicitud: ' + error.message, 'error', 'Error del Sistema');
-
-            document.getElementById('loadingIndicator').classList.add('hidden');
-            document.getElementById('loginForm').style.opacity = '1';
-            document.getElementById('loginForm').style.pointerEvents = 'auto';
-
-            setTimeout(() => {
-                window.location.reload();
-            }, 3000);
+            console.error('Session establishment error:', error);
+            showToast('Error al establecer sesión', 'error');
+            statusMessage.textContent = 'Error de sesión';
         }
     }
 
-    usernameInput.addEventListener('input', checkUsernameField);
-    startRecordingBtn.addEventListener('click', initializeCamera);
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
 
-    checkUsernameField();
+    function stopCamera() {
+        if (frameInterval) {
+            clearInterval(frameInterval);
+            frameInterval = null;
+        }
 
-    window.addEventListener('beforeunload', () => {
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
+            stream = null;
         }
-        if (timerInterval) {
-            clearInterval(timerInterval);
-        }
-        if (validationInterval) {
-            clearInterval(validationInterval);
-        }
-        if (audioContext) {
-            audioContext.close();
-        }
+    }
+
+    // Event listeners
+    startAuthBtn.addEventListener('click', startAuthentication);
+
+    usernameInput.addEventListener('input', () => {
+        startAuthBtn.disabled = !usernameInput.value.trim();
+    });
+
+    startAuthBtn.disabled = !usernameInput.value.trim();
+
+    window.addEventListener('beforeunload', () => {
+        stopCamera();
+        if (ws) ws.close();
     });
 </script>
 {% endblock %}
