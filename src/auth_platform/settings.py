@@ -76,11 +76,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "auth_platform.wsgi.application"
 ASGI_APPLICATION = "auth_platform.asgi.application"
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer"
-    }
-}
+CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
 
 DATABASES = {
     "default": {

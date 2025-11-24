@@ -29,13 +29,13 @@ logger = logging.getLogger(__name__)
 class LivenessConsumer(AsyncWebsocketConsumer):
     """
     WebSocket consumer for real-time biometric authentication
-    
+
     Protocol:
     Client → Server:
         {"type": "start", "username": "user123"}
         {"type": "frame", "username": "user123", "image": "base64_jpeg"}
         {"type": "audio", "username": "user123", "audio": "base64_wav"}
-    
+
     Server → Client:
         {"type": "face_result", "recognized": true, "username": "user123", "confidence": 0.95}
         {"type": "voice_result", "recognized": true, "confidence": 0.85}
@@ -47,12 +47,12 @@ class LivenessConsumer(AsyncWebsocketConsumer):
         self.face_detector = FaceDetector()
         self.facial_identifier = FacialIdentifier()
         self.voice_identifier = VoiceIdentifier()
-        
+
         self.username = None
         self.frame_count = 0
         self.face_recognitions = []  # Store recognition results
         self.voice_retries = 0
-        
+
         # Recognition thresholds
         self.MIN_FACE_CONFIRMATIONS = 3  # Need 3 consistent recognitions
         self.PROCESS_EVERY_N_FRAMES = 2  # Process every 2nd frame
@@ -65,11 +65,15 @@ class LivenessConsumer(AsyncWebsocketConsumer):
         """Accept WebSocket connection"""
         await self.accept()
         logger.info("WebSocket connection established")
-        
-        await self.send(text_data=json.dumps({
-            "type": "connected",
-            "message": "WebSocket connected. Ready for authentication."
-        }))
+
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "connected",
+                    "message": "WebSocket connected. Ready for authentication.",
+                }
+            )
+        )
 
     async def disconnect(self, close_code):
         """Clean up on disconnect"""
@@ -104,7 +108,9 @@ class LivenessConsumer(AsyncWebsocketConsumer):
             return
 
         # Verify user exists
-        user_exists = await sync_to_async(User.objects.filter(username=self.username).exists)()
+        user_exists = await sync_to_async(
+            User.objects.filter(username=self.username).exists
+        )()
         if not user_exists:
             await self.send_error("User not found")
             return
@@ -115,11 +121,15 @@ class LivenessConsumer(AsyncWebsocketConsumer):
         self.face_authenticated = False
         self.voice_authenticated = False
 
-        await self.send(text_data=json.dumps({
-            "type": "session_started",
-            "username": self.username,
-            "message": "Session started. Show your face to the camera."
-        }))
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "session_started",
+                    "username": self.username,
+                    "message": "Session started. Show your face to the camera.",
+                }
+            )
+        )
         logger.info(f"Session started for user: {self.username}")
 
     async def handle_frame(self, data: Dict):
@@ -162,13 +172,15 @@ class LivenessConsumer(AsyncWebsocketConsumer):
         try:
             # Detect face first
             frame = np.array(image)
-            boxes, probs = await sync_to_async(self.face_detector.get_mtcnn().detect)(image)
-            
+            boxes, probs = await sync_to_async(self.face_detector.get_mtcnn().detect)(
+                image
+            )
+
             if boxes is None or len(boxes) == 0:
                 return {
                     "type": "face_result",
                     "face_detected": False,
-                    "message": "No face detected"
+                    "message": "No face detected",
                 }
 
             # Save to temp file for CNN
@@ -185,10 +197,9 @@ class LivenessConsumer(AsyncWebsocketConsumer):
                 # Store result
                 matches_claimed = identified_person == self.username
                 if matches_claimed and confidence > 0.65:
-                    self.face_recognitions.append({
-                        "username": identified_person,
-                        "confidence": confidence
-                    })
+                    self.face_recognitions.append(
+                        {"username": identified_person, "confidence": confidence}
+                    )
 
                 return {
                     "type": "face_result",
@@ -199,7 +210,9 @@ class LivenessConsumer(AsyncWebsocketConsumer):
                     "matches_claim": matches_claimed,
                     "confirmations": len(self.face_recognitions),
                     "required": self.MIN_FACE_CONFIRMATIONS,
-                    "message": f"Recognized: {identified_person} ({confidence:.0%})" if identified_person != "unknown" else "Not recognized"
+                    "message": f"Recognized: {identified_person} ({confidence:.0%})"
+                    if identified_person != "unknown"
+                    else "Not recognized",
                 }
 
             finally:
@@ -208,26 +221,28 @@ class LivenessConsumer(AsyncWebsocketConsumer):
 
         except Exception as e:
             logger.error(f"Face recognition error: {e}", exc_info=True)
-            return {
-                "type": "face_result",
-                "recognized": False,
-                "error": str(e)
-            }
+            return {"type": "face_result", "recognized": False, "error": str(e)}
 
     async def check_face_authentication(self):
         """Check if face authentication complete"""
         if len(self.face_recognitions) >= self.MIN_FACE_CONFIRMATIONS:
             self.face_authenticated = True
-            avg_confidence = sum(r["confidence"] for r in self.face_recognitions) / len(self.face_recognitions)
-            
+            avg_confidence = sum(r["confidence"] for r in self.face_recognitions) / len(
+                self.face_recognitions
+            )
+
             logger.info(f"Face authenticated: {self.username} ({avg_confidence:.0%})")
-            
-            await self.send(text_data=json.dumps({
-                "type": "face_authenticated",
-                "username": self.username,
-                "confidence": float(avg_confidence),
-                "message": "✅ Rostro reconocido! Ahora habla para verificar tu voz."
-            }))
+
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "face_authenticated",
+                        "username": self.username,
+                        "confidence": float(avg_confidence),
+                        "message": "✅ Rostro reconocido! Ahora habla para verificar tu voz.",
+                    }
+                )
+            )
 
             await self.check_complete_authentication()
 
@@ -247,7 +262,7 @@ class LivenessConsumer(AsyncWebsocketConsumer):
                 audio_data = audio_data.split(",")[1]
 
             audio_bytes = base64.b64decode(audio_data)
-            
+
             # Save to temp file
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
                 tmp_file.write(audio_bytes)
@@ -260,41 +275,59 @@ class LivenessConsumer(AsyncWebsocketConsumer):
                 )(tmp_audio_path)
 
                 matches_claimed = identified_person == self.username
-                
+
                 if matches_claimed and confidence > 0.5:
                     self.voice_authenticated = True
-                    logger.info(f"Voice authenticated: {self.username} ({confidence:.0%})")
-                    
-                    await self.send(text_data=json.dumps({
-                        "type": "voice_result",
-                        "recognized": True,
-                        "username": identified_person,
-                        "confidence": float(confidence),
-                        "message": f"✅ Voz reconocida! ({confidence:.0%})"
-                    }))
+                    logger.info(
+                        f"Voice authenticated: {self.username} ({confidence:.0%})"
+                    )
+
+                    await self.send(
+                        text_data=json.dumps(
+                            {
+                                "type": "voice_result",
+                                "recognized": True,
+                                "username": identified_person,
+                                "confidence": float(confidence),
+                                "message": f"✅ Voz reconocida! ({confidence:.0%})",
+                            }
+                        )
+                    )
                 else:
                     self.voice_retries += 1
                     if self.voice_retries >= self.MAX_VOICE_RETRIES:
-                        logger.warning(f"Voice authentication failed after {self.MAX_VOICE_RETRIES} attempts for user {self.username}")
-                        await self.send(text_data=json.dumps({
-                            "type": "voice_result",
-                            "recognized": False,
-                            "error": True,
-                            "message": "❌ Autenticación de voz fallida después de varios intentos. Por favor, inténtelo de nuevo más tarde."
-                        }))
+                        logger.warning(
+                            f"Voice authentication failed after {self.MAX_VOICE_RETRIES} attempts for user {self.username}"
+                        )
+                        await self.send(
+                            text_data=json.dumps(
+                                {
+                                    "type": "voice_result",
+                                    "recognized": False,
+                                    "error": True,
+                                    "message": "❌ Autenticación de voz fallida después de varios intentos. Por favor, inténtelo de nuevo más tarde.",
+                                }
+                            )
+                        )
                         self.voice_authenticated = False
-                        await self.close() # Close connection on final failure
-                        return # Exit handle_audio
+                        await self.close()  # Close connection on final failure
+                        return  # Exit handle_audio
                     else:
-                        logger.info(f"Voice not recognized, prompting retry: {identified_person} ({confidence:.0%})")
-                        await self.send(text_data=json.dumps({
-                            "type": "voice_result",
-                            "recognized": False,
-                            "retry": True,
-                            "username": identified_person,
-                            "confidence": float(confidence),
-                            "message": f"Voz no reconocida. Por favor, inténtelo de nuevo. Intentos restantes: {self.MAX_VOICE_RETRIES - self.voice_retries}"
-                        }))
+                        logger.info(
+                            f"Voice not recognized, prompting retry: {identified_person} ({confidence:.0%})"
+                        )
+                        await self.send(
+                            text_data=json.dumps(
+                                {
+                                    "type": "voice_result",
+                                    "recognized": False,
+                                    "retry": True,
+                                    "username": identified_person,
+                                    "confidence": float(confidence),
+                                    "message": f"Voz no reconocida. Por favor, inténtelo de nuevo. Intentos restantes: {self.MAX_VOICE_RETRIES - self.voice_retries}",
+                                }
+                            )
+                        )
 
                 await self.check_complete_authentication()
 
@@ -310,34 +343,37 @@ class LivenessConsumer(AsyncWebsocketConsumer):
         """Check if both face and voice authenticated"""
         if self.face_authenticated and self.voice_authenticated:
             logger.info(f"Complete authentication successful: {self.username}")
-            
+
             # Get user ID
             user = await sync_to_async(User.objects.get)(username=self.username)
-            
+
             # Generate one-time session token
             session_token = secrets.token_urlsafe(32)
             cache_key = f"auth_token:{session_token}"
-            
+
             # Store user_id in cache with 30 second expiration
             await sync_to_async(cache.set)(cache_key, user.id, timeout=30)
-            
-            logger.info(f"Generated session token for {self.username}: {session_token[:10]}...")
-            
-            await self.send(text_data=json.dumps({
-                "type": "authentication_complete",
-                "success": True,
-                "username": self.username,
-                "message": "Autenticación exitosa!",
-                "redirect": "/dashboard/",
-                "session_token": session_token
-            }))
+
+            logger.info(
+                f"Generated session token for {self.username}: {session_token[:10]}..."
+            )
+
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "authentication_complete",
+                        "success": True,
+                        "username": self.username,
+                        "message": "Autenticación exitosa!",
+                        "redirect": "/dashboard/",
+                        "session_token": session_token,
+                    }
+                )
+            )
 
             # Close connection
             await self.close()
 
     async def send_error(self, message: str):
         """Send error message"""
-        await self.send(text_data=json.dumps({
-            "type": "error",
-            "message": message
-        }))
+        await self.send(text_data=json.dumps({"type": "error", "message": message}))

@@ -7,5 +7,7 @@ urlpatterns = [
     path("login/", views.login_view, name="login"),
     path("dashboard/", views.dashboard_view, name="dashboard"),
     path("logout/", views.logout_view, name="logout"),
-    path("api/establish-session/", views.establish_session_view, name="establish_session"),
+    path(
+        "api/establish-session/", views.establish_session_view, name="establish_session"
+    ),
 ]

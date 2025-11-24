@@ -110,15 +110,15 @@ def conv_block(x, filters, kernel_size=(3, 3), strides=(1, 1), dropout_rate=0.2)
 def residual_block(x, filters, dropout_rate=0.2):
     """Residual-like block with skip connection"""
     shortcut = x
-    
+
     # Main path
     x = conv_block(x, filters, dropout_rate=dropout_rate)
-    
+
     # Match dimensions if needed
     if shortcut.shape[-1] != filters:
         shortcut = layers.Conv2D(filters, (1, 1), padding="same")(shortcut)
         shortcut = layers.BatchNormalization()(shortcut)
-    
+
     # Add skip connection
     x = layers.Add()([x, shortcut])
     x = layers.Activation("relu")(x)
@@ -186,33 +186,41 @@ def plot_training_history(history, use_augmentation=True):
     import matplotlib.pyplot as plt
 
     aug_suffix = "_with_aug" if use_augmentation else "_no_aug"
-    
+
     # Create figure with 2 subplots
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-    
+
     # Plot accuracy
-    ax1.plot(history.history['accuracy'], label='Train Accuracy', linewidth=2)
-    ax1.plot(history.history['val_accuracy'], label='Validation Accuracy', linewidth=2)
-    ax1.set_title(f'Model Accuracy {"(With Augmentation)" if use_augmentation else "(No Augmentation)"}', fontsize=14, fontweight='bold')
-    ax1.set_xlabel('Epoch', fontsize=12)
-    ax1.set_ylabel('Accuracy', fontsize=12)
-    ax1.legend(loc='lower right', fontsize=11)
+    ax1.plot(history.history["accuracy"], label="Train Accuracy", linewidth=2)
+    ax1.plot(history.history["val_accuracy"], label="Validation Accuracy", linewidth=2)
+    ax1.set_title(
+        f"Model Accuracy {'(With Augmentation)' if use_augmentation else '(No Augmentation)'}",
+        fontsize=14,
+        fontweight="bold",
+    )
+    ax1.set_xlabel("Epoch", fontsize=12)
+    ax1.set_ylabel("Accuracy", fontsize=12)
+    ax1.legend(loc="lower right", fontsize=11)
     ax1.grid(True, alpha=0.3)
-    
+
     # Plot loss
-    ax2.plot(history.history['loss'], label='Train Loss', linewidth=2)
-    ax2.plot(history.history['val_loss'], label='Validation Loss', linewidth=2)
-    ax2.set_title(f'Model Loss {"(With Augmentation)" if use_augmentation else "(No Augmentation)"}', fontsize=14, fontweight='bold')
-    ax2.set_xlabel('Epoch', fontsize=12)
-    ax2.set_ylabel('Loss', fontsize=12)
-    ax2.legend(loc='upper right', fontsize=11)
+    ax2.plot(history.history["loss"], label="Train Loss", linewidth=2)
+    ax2.plot(history.history["val_loss"], label="Validation Loss", linewidth=2)
+    ax2.set_title(
+        f"Model Loss {'(With Augmentation)' if use_augmentation else '(No Augmentation)'}",
+        fontsize=14,
+        fontweight="bold",
+    )
+    ax2.set_xlabel("Epoch", fontsize=12)
+    ax2.set_ylabel("Loss", fontsize=12)
+    ax2.legend(loc="upper right", fontsize=11)
     ax2.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
-    
+
     # Save plot
     plot_path = CHECKPOINT_PATH / f"training_history{aug_suffix}.png"
-    plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+    plt.savefig(plot_path, dpi=150, bbox_inches="tight")
     print(f"  Training history plot saved: {plot_path}")
     plt.close()
 
@@ -306,7 +314,7 @@ def train_cnn_classifier(
                 indices = np.random.permutation(len(images))
             else:
                 indices = np.arange(len(images))
-            
+
             for i in range(0, len(images), batch_size):
                 batch_indices = indices[i : i + batch_size]
                 batch_images = images[batch_indices]
