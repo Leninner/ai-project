@@ -344,6 +344,16 @@ class LivenessConsumer(AsyncWebsocketConsumer):
         if self.face_authenticated and self.voice_authenticated:
             logger.info(f"Complete authentication successful: {self.username}")
 
+            # Verify user exists before getting
+            user_exists = await sync_to_async(
+                User.objects.filter(username=self.username).exists
+            )()
+            
+            if not user_exists:
+                await self.send_error(f"User '{self.username}' not found in database")
+                logger.error(f"Authentication failed: User '{self.username}' does not exist")
+                return
+
             # Get user ID
             user = await sync_to_async(User.objects.get)(username=self.username)
 

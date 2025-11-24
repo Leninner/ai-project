@@ -126,6 +126,20 @@ def residual_block(x, filters, dropout_rate=0.2):
 
 
 def build_cnn_model(input_shape, num_classes):
+    """
+    Simplified CNN model with 3 convolutional blocks
+
+    Architecture:
+    - Input: 160x160x3
+    - Block 1: 32 filters -> 80x80x32
+    - Block 2: 64 filters -> 40x40x64
+    - Block 3: 128 filters -> 20x20x128
+    - Global Average Pooling -> 128
+    - Dense: 256 -> 128 -> num_classes
+
+    This architecture preserves more spatial information by stopping at 20x20
+    instead of going down to 10x10, which was too pixelated.
+    """
     inputs = layers.Input(shape=input_shape)
 
     # Initial convolution
@@ -133,31 +147,27 @@ def build_cnn_model(input_shape, num_classes):
     x = layers.BatchNormalization()(x)
     x = layers.Activation("relu")(x)
 
-    # Block 1: 32 filters
+    # Block 1: 32 filters (160x160 -> 80x80)
     x = residual_block(x, 32, dropout_rate=0.1)
     x = layers.MaxPooling2D((2, 2))(x)
 
-    # Block 2: 64 filters
+    # Block 2: 64 filters (80x80 -> 40x40)
     x = residual_block(x, 64, dropout_rate=0.15)
     x = layers.MaxPooling2D((2, 2))(x)
 
-    # Block 3: 128 filters
+    # Block 3: 128 filters (40x40 -> 20x20)
     x = residual_block(x, 128, dropout_rate=0.2)
     x = layers.MaxPooling2D((2, 2))(x)
 
-    # Block 4: 256 filters
-    x = residual_block(x, 256, dropout_rate=0.25)
-    x = layers.MaxPooling2D((2, 2))(x)
-
-    # Global pooling
+    # Global pooling (20x20x128 -> 128)
     x = layers.GlobalAveragePooling2D()(x)
 
-    # Dense layers (removed redundant Flatten after GAP)
-    x = layers.Dense(512, activation="relu")(x)
+    # Simplified dense layers
+    x = layers.Dense(256, activation="relu")(x)
     x = layers.BatchNormalization()(x)
     x = layers.Dropout(0.3)(x)
 
-    x = layers.Dense(256, activation="relu")(x)
+    x = layers.Dense(128, activation="relu")(x)
     x = layers.BatchNormalization()(x)
     x = layers.Dropout(0.2)(x)
 

@@ -24,3 +24,5 @@ ape3/**
 
 # logs
 logs/
+
+visualizations/**

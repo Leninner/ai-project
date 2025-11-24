@@ -47,8 +47,12 @@ class RegistrationConsumer(AsyncWebsocketConsumer):
     # Constants
     REQUIRED_FRAMES = 200
     MIN_FACE_DETECTION_RATE = 0.8  # 80% of frames must have faces
-    FACIAL_DATA_DIR = Path(__file__).parent.parent.parent.parent / "models" / "facial" / "data"
-    VOICE_DATA_DIR = Path(__file__).parent.parent.parent.parent / "models" / "voice" / "data"
+    FACIAL_DATA_DIR = (
+        Path(__file__).parent.parent.parent.parent / "models" / "facial" / "data"
+    )
+    VOICE_DATA_DIR = (
+        Path(__file__).parent.parent.parent.parent / "models" / "voice" / "data"
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -182,7 +186,9 @@ class RegistrationConsumer(AsyncWebsocketConsumer):
                         "required": self.REQUIRED_FRAMES,
                         "faces_detected": self.faces_detected,
                         "face_detected": face_detected,
-                        "progress_percent": int((self.frames_saved / self.REQUIRED_FRAMES) * 100),
+                        "progress_percent": int(
+                            (self.frames_saved / self.REQUIRED_FRAMES) * 100
+                        ),
                     }
                 )
             )
@@ -191,7 +197,9 @@ class RegistrationConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error processing frame: {e}", exc_info=True)
             await self.send_error(f"Frame processing error: {str(e)}")
 
-    async def process_and_save_frame(self, image: Image.Image) -> tuple[bool, Optional[np.ndarray]]:
+    async def process_and_save_frame(
+        self, image: Image.Image
+    ) -> tuple[bool, Optional[np.ndarray]]:
         """Detect face and save frame if valid"""
         try:
             # Convert PIL Image to numpy array
@@ -199,7 +207,9 @@ class RegistrationConsumer(AsyncWebsocketConsumer):
             frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
             # Detect and extract face
-            face_crop = await sync_to_async(FaceDetector.extract_face_from_frame)(frame_bgr)
+            face_crop = await sync_to_async(FaceDetector.extract_face_from_frame)(
+                frame_bgr
+            )
 
             if face_crop is not None:
                 # Save the face crop
@@ -208,15 +218,17 @@ class RegistrationConsumer(AsyncWebsocketConsumer):
 
                 # Convert to RGB and preprocess
                 rgb_array = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
-                
+
                 # Import and use preprocessor
                 import sys
-                facial_models_path = Path(__file__).parent.parent.parent.parent / "models" / "facial"
+
+                facial_models_path = (
+                    Path(__file__).parent.parent.parent.parent / "models" / "facial"
+                )
                 if str(facial_models_path) not in sys.path:
                     sys.path.insert(0, str(facial_models_path))
                 from facial_preprocessor import FacialPreprocessor
 
-                
                 preprocessor = FacialPreprocessor()
                 preprocessed = preprocessor.preprocess_cropped_face(rgb_array)
 
@@ -224,7 +236,9 @@ class RegistrationConsumer(AsyncWebsocketConsumer):
                 preprocessed_image = Image.fromarray(preprocessed)
                 await sync_to_async(preprocessed_image.save)(str(frame_path))
 
-                logger.debug(f"Saved frame {self.frames_saved} for user {self.username}")
+                logger.debug(
+                    f"Saved frame {self.frames_saved} for user {self.username}"
+                )
                 return True, face_crop
             else:
                 return False, None
@@ -252,34 +266,48 @@ class RegistrationConsumer(AsyncWebsocketConsumer):
 
             # Save audio chunk - convert from webm to wav if needed
             self.audio_count += 1
-            
+
             # Save temporary webm file
             temp_webm = tempfile.NamedTemporaryFile(suffix=".webm", delete=False)
             temp_webm.write(audio_bytes)
             temp_webm.close()
-            
+
             try:
                 # Convert webm to wav using ffmpeg
                 audio_path = self.user_voice_dir / f"{self.audio_count}.wav"
-                
+
                 import subprocess
-                result = await sync_to_async(subprocess.run)([
-                    'ffmpeg', '-i', temp_webm.name,
-                    '-acodec', 'pcm_s16le',
-                    '-ar', '16000',
-                    '-ac', '1',
-                    '-y',
-                    str(audio_path)
-                ], capture_output=True, text=True)
-                
+
+                result = await sync_to_async(subprocess.run)(
+                    [
+                        "ffmpeg",
+                        "-i",
+                        temp_webm.name,
+                        "-acodec",
+                        "pcm_s16le",
+                        "-ar",
+                        "16000",
+                        "-ac",
+                        "1",
+                        "-y",
+                        str(audio_path),
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+
                 if result.returncode != 0:
                     logger.error(f"FFmpeg error: {result.stderr}")
                     # If ffmpeg fails, save as webm and log warning
                     audio_path = self.user_voice_dir / f"{self.audio_count}.webm"
                     await sync_to_async(audio_path.write_bytes)(audio_bytes)
-                    logger.warning(f"Saved audio as webm (ffmpeg failed) for chunk {self.audio_count}")
+                    logger.warning(
+                        f"Saved audio as webm (ffmpeg failed) for chunk {self.audio_count}"
+                    )
                 else:
-                    logger.debug(f"Converted and saved audio chunk {self.audio_count} for user {self.username}")
+                    logger.debug(
+                        f"Converted and saved audio chunk {self.audio_count} for user {self.username}"
+                    )
             finally:
                 # Clean up temp file
                 if os.path.exists(temp_webm.name):
@@ -313,7 +341,9 @@ class RegistrationConsumer(AsyncWebsocketConsumer):
                 return
 
             # Validate face detection rate
-            face_detection_rate = self.faces_detected / self.frame_count if self.frame_count > 0 else 0
+            face_detection_rate = (
+                self.faces_detected / self.frame_count if self.frame_count > 0 else 0
+            )
             if face_detection_rate < self.MIN_FACE_DETECTION_RATE:
                 await self.send_error(
                     f"Insufficient face detection. Only {face_detection_rate:.0%} of frames had faces. "
@@ -367,13 +397,21 @@ class RegistrationConsumer(AsyncWebsocketConsumer):
     async def cleanup_user_data(self):
         """Remove user data directories on failure"""
         try:
-            if self.user_facial_dir and await sync_to_async(self.user_facial_dir.exists)():
+            if (
+                self.user_facial_dir
+                and await sync_to_async(self.user_facial_dir.exists)()
+            ):
                 import shutil
+
                 await sync_to_async(shutil.rmtree)(self.user_facial_dir)
                 logger.info(f"Cleaned up facial data for {self.username}")
 
-            if self.user_voice_dir and await sync_to_async(self.user_voice_dir.exists)():
+            if (
+                self.user_voice_dir
+                and await sync_to_async(self.user_voice_dir.exists)()
+            ):
                 import shutil
+
                 await sync_to_async(shutil.rmtree)(self.user_voice_dir)
                 logger.info(f"Cleaned up voice data for {self.username}")
         except Exception as e:
