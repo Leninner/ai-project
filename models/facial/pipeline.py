@@ -8,6 +8,7 @@ from pathlib import Path
 from PIL import Image
 import torch
 from facenet_pytorch import MTCNN, InceptionResnetV1
+from classifiers import cnn_classifier
 
 DATA_DIR = Path(__file__).parent / "data"
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints"
@@ -16,24 +17,27 @@ CONFIDENCE_THRESHOLD = 0.75
 _mtcnn = None
 _resnet = None
 
+
 def get_mtcnn():
     global _mtcnn
     if _mtcnn is None:
         _mtcnn = MTCNN(image_size=160, margin=0, min_face_size=20)
     return _mtcnn
 
+
 def get_resnet():
     global _resnet
     if _resnet is None:
-        _resnet = InceptionResnetV1(pretrained='vggface2').eval()
+        _resnet = InceptionResnetV1(pretrained="vggface2").eval()
     return _resnet
+
 
 def extract_embedding(image_path):
     resnet = get_resnet()
-    
-    img = Image.open(image_path).convert('RGB')
+
+    img = Image.open(image_path).convert("RGB")
     img_array = np.array(img)
-    
+
     if img_array.shape != (160, 160, 3):
         mtcnn = get_mtcnn()
         img_cropped = mtcnn(img)
@@ -43,12 +47,13 @@ def extract_embedding(image_path):
     else:
         img_array_normalized = img_array.astype(np.float32) / 255.0
         img_tensor = torch.from_numpy(img_array_normalized).permute(2, 0, 1)
-    
+
     img_tensor = img_tensor.unsqueeze(0)
     with torch.no_grad():
         embedding = resnet(img_tensor)
-    
+
     return embedding.squeeze().numpy()
+
 
 def extract_embeddings(data_dir):
     X, y = [], []
@@ -57,7 +62,7 @@ def extract_embeddings(data_dir):
         if not os.path.isdir(person_dir):
             continue
         for image_name in os.listdir(person_dir):
-            if not image_name.lower().endswith(('.jpg', '.jpeg', '.png')):
+            if not image_name.lower().endswith((".jpg", ".jpeg", ".png")):
                 continue
             image_path = os.path.join(person_dir, image_name)
             try:
@@ -68,67 +73,88 @@ def extract_embeddings(data_dir):
                 continue
     return np.array(X), np.array(y)
 
+
 def identify_face(query_embedding, classifier_type: str = "nn"):
     try:
-        from .classifiers.classifier_strategy import create_classifier_strategy, FaceIdentifier
+        from .classifiers.classifier_strategy import (
+            create_classifier_strategy,
+            FaceIdentifier,
+        )
     except ImportError:
         import sys
         from pathlib import Path
+
         facial_path = Path(__file__).parent
         if str(facial_path) not in sys.path:
             sys.path.insert(0, str(facial_path))
-        from classifiers.classifier_strategy import create_classifier_strategy, FaceIdentifier
-    
+        from classifiers.classifier_strategy import (
+            create_classifier_strategy,
+            FaceIdentifier,
+        )
+
     strategy = create_classifier_strategy(classifier_type)
     face_identifier = FaceIdentifier(strategy)
     return face_identifier.identify_face(query_embedding)
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Train and evaluate facial recognition classifier')
+    parser = argparse.ArgumentParser(
+        description="Train and evaluate facial recognition classifier"
+    )
     parser.add_argument(
-        '--classifier', '-c',
+        "--classifier",
+        "-c",
         type=str,
-        choices=['nn', 'cnn'],
-        default='nn',
-        help='Classifier type to use: nn (Neural Network), or cnn (Convolutional Neural Network). Default: nn'
+        choices=["nn", "cnn"],
+        default="nn",
+        help="Classifier type to use: nn (Neural Network), or cnn (Convolutional Neural Network). Default: nn",
+    )
+    parser.add_argument(
+        "--no-augmentation",
+        action="store_true",
+        help="Disable data augmentation during CNN training (only applies to CNN classifier)",
     )
     args = parser.parse_args()
-    
+
     classifier_type = args.classifier
+    use_augmentation = not args.no_augmentation  # Invert the flag
 
     try:
-        from .classifiers.classifier_strategy import create_classifier_strategy, FaceIdentifier
+        from .classifiers.classifier_strategy import (
+            create_classifier_strategy,
+            FaceIdentifier,
+        )
     except ImportError:
         import sys
         from pathlib import Path
+
         facial_path = Path(__file__).parent
         if str(facial_path) not in sys.path:
             sys.path.insert(0, str(facial_path))
-        from classifiers.classifier_strategy import create_classifier_strategy, FaceIdentifier
-    
+        from classifiers.classifier_strategy import (
+            create_classifier_strategy,
+            FaceIdentifier,
+        )
+
     strategy = create_classifier_strategy(classifier_type)
     face_identifier = FaceIdentifier(strategy)
-    
-    if classifier_type == 'cnn':
-        try:
-            from .classifiers import cnn_classifier
-        except ImportError:
-            import sys
-            from pathlib import Path
-            facial_path = Path(__file__).parent
-            if str(facial_path) not in sys.path:
-                sys.path.insert(0, str(facial_path))
-            from classifiers import cnn_classifier
+
+    if classifier_type == "cnn":
         all_images, all_labels = cnn_classifier.load_images_from_directory(DATA_DIR)
         indices = np.arange(len(all_images))
-        train_indices, test_indices = train_test_split(indices, test_size=0.3, random_state=42, stratify=all_labels)
-        train_images = all_images[train_indices]
-        train_labels = all_labels[train_indices]
+        _, test_indices = train_test_split(
+            indices, test_size=0.3, random_state=42, stratify=all_labels
+        )
         test_images = all_images[test_indices]
         y_test = all_labels[test_indices]
-        
-        face_identifier.train(embeddings_train=None, labels_train=None, data_dir=DATA_DIR)
-        
+
+        face_identifier.train(
+            embeddings_train=None,
+            labels_train=None,
+            data_dir=DATA_DIR,
+            use_augmentation=use_augmentation,
+        )
+
         y_pred = []
         confidences = []
         for img in test_images:
@@ -138,10 +164,13 @@ if __name__ == "__main__":
         y_pred = np.array(y_pred)
     else:
         X, y = extract_embeddings(DATA_DIR)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.3, random_state=42
+        )
+
         face_identifier.train(X_train, y_train)
 
-    if classifier_type != 'cnn':
+    if classifier_type != "cnn":
         print("")
         print("─" * 60)
         print("🔍 Identificando personas en conjunto de prueba...")
@@ -160,10 +189,10 @@ if __name__ == "__main__":
         print("─" * 60)
         print("🔍 Identificando personas en conjunto de prueba...")
         print("─" * 60)
-    
+
     unknown_mask = y_pred == "unknown"
     known_mask = ~unknown_mask
-    
+
     classifier_name = "Neural Network" if classifier_type == "nn" else "CNN"
     print("")
     print("═" * 60)
@@ -171,23 +200,32 @@ if __name__ == "__main__":
     print(f"   └─ Umbral de confianza: {CONFIDENCE_THRESHOLD:.2%}")
     print("═" * 60)
     print(f"   ├─ Personas conocidas identificadas: {np.sum(known_mask)}/{len(y_test)}")
-    print(f"   └─ Personas etiquetadas como desconocidas: {np.sum(unknown_mask)}/{len(y_test)}")
-    
+    print(
+        f"   └─ Personas etiquetadas como desconocidas: {np.sum(unknown_mask)}/{len(y_test)}"
+    )
+
     if np.sum(known_mask) > 0:
         y_test_known = y_test[known_mask]
         y_pred_known = y_pred[known_mask]
-        
+
         accuracy_known = accuracy_score(y_test_known, y_pred_known)
         print("")
         print("─" * 60)
         print(f"✓ Precisión en personas conocidas: {accuracy_known:.2%}")
         print("─" * 60)
-        
+
         unique_persons = np.unique(np.concatenate([y_test_known, y_pred_known]))
         print("")
         print("📋 Reporte de Clasificación (personas conocidas)")
         print("─" * 60)
-        print(classification_report(y_test_known, y_pred_known, labels=unique_persons, target_names=unique_persons))
+        print(
+            classification_report(
+                y_test_known,
+                y_pred_known,
+                labels=unique_persons,
+                target_names=unique_persons,
+            )
+        )
 
     confidences = np.array(confidences)
     print("")
@@ -198,37 +236,49 @@ if __name__ == "__main__":
     print(f"   ├─ Confianza mínima: {np.min(confidences):.2%}")
     print(f"   └─ Confianza máxima: {np.max(confidences):.2%}")
     if np.sum(known_mask) > 0:
-        print(f"   ├─ Confianza promedio (conocidas): {np.mean(confidences[known_mask]):.2%}")
+        print(
+            f"   ├─ Confianza promedio (conocidas): {np.mean(confidences[known_mask]):.2%}"
+        )
     if np.sum(unknown_mask) > 0:
-        print(f"   └─ Confianza promedio (desconocidas): {np.mean(confidences[unknown_mask]):.2%}")
+        print(
+            f"   └─ Confianza promedio (desconocidas): {np.mean(confidences[unknown_mask]):.2%}"
+        )
 
     all_labels = np.unique(np.concatenate([y_test, y_pred]))
     cm = confusion_matrix(y_test, y_pred, labels=all_labels)
     plt.figure(figsize=(12, 10))
-    cmap_colors = {'nn': 'Greens', 'cnn': 'Reds'}
-    plt.imshow(cm, interpolation='nearest', cmap=cmap_colors.get(classifier_type, 'Blues'))
-    title_prefix = "CNN" if classifier_type == 'cnn' else "FaceNet +"
-    plt.title(f"Matriz de confusión - {title_prefix} {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD})")
+    cmap_colors = {"nn": "Greens", "cnn": "Reds"}
+    plt.imshow(
+        cm, interpolation="nearest", cmap=cmap_colors.get(classifier_type, "Blues")
+    )
+    title_prefix = "CNN" if classifier_type == "cnn" else "FaceNet +"
+    plt.title(
+        f"Matriz de confusión - {title_prefix} {classifier_name} (Umbral: {CONFIDENCE_THRESHOLD})"
+    )
     plt.colorbar()
     tick_marks = np.arange(len(all_labels))
-    plt.xticks(tick_marks, all_labels, rotation=45, ha='right')
+    plt.xticks(tick_marks, all_labels, rotation=45, ha="right")
     plt.yticks(tick_marks, all_labels)
     plt.ylabel("Persona real")
     plt.xlabel("Persona identificada")
-    thresh = cm.max() / 2.
+    thresh = cm.max() / 2.0
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
-            plt.text(j, i, format(cm[i, j], 'd'),
-                    horizontalalignment="center",
-                    color="white" if cm[i, j] > thresh else "black")
+            plt.text(
+                j,
+                i,
+                format(cm[i, j], "d"),
+                horizontalalignment="center",
+                color="white" if cm[i, j] > thresh else "black",
+            )
     plt.tight_layout()
-    
+
     confusion_matrix_filename = f"confusion_matrix_facial_{classifier_type}.png"
     confusion_matrix_path = Path(__file__).parent / confusion_matrix_filename
-    plt.savefig(confusion_matrix_path, dpi=150, bbox_inches='tight')
+    plt.savefig(confusion_matrix_path, dpi=150, bbox_inches="tight")
     print("")
     print("─" * 60)
-    print(f"💾 Matriz de confusión guardada")
+    print("💾 Matriz de confusión guardada")
     print(f"   └─ {confusion_matrix_path}")
     print("─" * 60)
     print("")

@@ -1,6 +1,5 @@
 import subprocess
 import tempfile
-import os
 from typing import Optional
 
 
@@ -11,12 +10,21 @@ class VideoConverter:
             temp_mp4 = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
             temp_mp4.close()
             output_path = temp_mp4.name
-        
-        subprocess.run([
-            'ffmpeg', '-i', webm_path,
-            '-c:v', 'libx264', '-preset', 'fast',
-            '-y', output_path
-        ], check=True, capture_output=True)
-        
-        return output_path
 
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-i",
+                webm_path,
+                "-c:v",
+                "libx264",
+                "-preset",
+                "fast",
+                "-y",
+                output_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        return output_path

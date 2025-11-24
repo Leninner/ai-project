@@ -6,8 +6,7 @@ class User(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'authentication_user'
+        db_table = "authentication_user"
 
     def __str__(self):
         return self.username
-

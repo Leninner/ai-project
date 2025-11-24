@@ -7,15 +7,14 @@ from .audio_processor import AudioProcessor
 from ..services.video import VideoConverter
 
 __all__ = [
-    'BiometricConfig',
-    'VoiceModelLoader',
-    'FacialModelLoader',
-    'VoiceEmbeddingExtractor',
-    'FacialEmbeddingExtractor',
-    'VoiceIdentifier',
-    'FacialIdentifier',
-    'FaceDetector',
-    'AudioProcessor',
-    'VideoConverter',
+    "BiometricConfig",
+    "VoiceModelLoader",
+    "FacialModelLoader",
+    "VoiceEmbeddingExtractor",
+    "FacialEmbeddingExtractor",
+    "VoiceIdentifier",
+    "FacialIdentifier",
+    "FaceDetector",
+    "AudioProcessor",
+    "VideoConverter",
 ]
-

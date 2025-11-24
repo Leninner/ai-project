@@ -6,4 +6,3 @@ class BaseValidator(ABC):
     @abstractmethod
     def validate(self, file_path: str, expected_name: str) -> Tuple[bool, str, float]:
         pass
-

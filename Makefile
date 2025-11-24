@@ -2,56 +2,54 @@
 
 .PHONY: help train-voice db-up db-down db-reset migrate makemigrations runserver createsuperuser
 
-help:
-	@echo "Available targets:"
-	@echo ""
-	@echo "  make db-up            Start PostgreSQL database with Docker Compose"
-	@echo "  make db-down          Stop PostgreSQL database"
-	@echo "  make db-reset         Reset database (stop, remove volumes, start)"
-	@echo "  make migrate          Run Django database migrations"
-	@echo "  make makemigrations   Create Django database migrations"
-	@echo "  make runserver        Run Django development server"
-	@echo "  make createsuperuser  Create Django superuser"
-	@echo "  make help            Show this help message"
-	@echo ""
+help: ## Show this help message
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-prepare-data:
+prepare-data: ## Unzip data for models
 	unzip -o models/facial/data.zip -d models/facial/
 	unzip -o models/voice/data.zip -d models/voice/
 	rm models/facial/data.zip
 	rm models/voice/data.zip
 
-train-facial-cnn:
-	cd models/facial && uv run python pipeline.py -c cnn
+train-facial-cnn: ## Train facial CNN model
+	cd models/facial && uv run python pipeline.py -c cnn --no-augmentation
 
-train-voice-nn:
+train-voice-nn: ## Train voice NN model
 	cd models/voice && uv run python pipeline.py -c nn
 
-train-facial-nn:
+train-facial-nn: ## Train facial NN model
 	cd models/facial && uv run python pipeline.py -c nn
 
-train-voice-cnn:
+train-voice-cnn: ## Train voice CNN model
 	cd models/voice && uv run python pipeline.py -c cnn
 
-db-up:
+tensorboard: ## Run TensorBoard
+	uv run tensorboard --logdir models/facial/logs/fit
+
+db-up: ## Start PostgreSQL database with Docker Compose
 	docker compose up -d
 
-db-down:
+db-down: ## Stop PostgreSQL database
 	docker compose down
 
-db-reset:
+db-reset: ## Reset database (stop, remove volumes, start)
 	docker compose down -v
 	docker compose up -d
 
-makemigrations:
+format: ## Format and check code with Ruff
+	uv run ruff format . && uv run ruff check . --fix
+
+makemigrations: ## Create Django database migrations
 	cd src && uv run python manage.py makemigrations
 
-migrate:
+migrate: ## Run Django database migrations
 	cd src && uv run python manage.py migrate
 
-runserver:
+runserver: ## Run Django development server
 	cd src && uv run python manage.py runserver
 
-createsuperuser:
+createsuperuser: ## Create Django superuser
 	cd src && uv run python manage.py createsuperuser
-

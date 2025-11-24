@@ -6,11 +6,10 @@ from .training_service import TrainingService
 from .biometric_media_processor import BiometricMediaProcessor
 
 __all__ = [
-    'FileHandler',
-    'RegistrationService',
-    'AuthenticationService',
-    'VideoProcessor',
-    'TrainingService',
-    'BiometricMediaProcessor',
+    "FileHandler",
+    "RegistrationService",
+    "AuthenticationService",
+    "VideoProcessor",
+    "TrainingService",
+    "BiometricMediaProcessor",
 ]
-

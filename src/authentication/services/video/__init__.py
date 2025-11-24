@@ -3,8 +3,7 @@ from .video_processor import VideoProcessor
 from .video_converter import VideoConverter
 
 __all__ = [
-    'VideoFileHandler',
-    'VideoProcessor',
-    'VideoConverter',
+    "VideoFileHandler",
+    "VideoProcessor",
+    "VideoConverter",
 ]
-

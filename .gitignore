@@ -21,3 +21,6 @@ models/*/data/*
 
 # APE3
 ape3/**
+
+# logs
+logs/
