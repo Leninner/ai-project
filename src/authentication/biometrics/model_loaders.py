@@ -11,9 +11,9 @@ from .config import BiometricConfig
 class BaseModelLoader(ABC):
     def __init__(self, classifier_type: str = "nn"):
         self.classifier_type = classifier_type.lower()
-        if self.classifier_type not in ["nn", "cnn"]:
+        if self.classifier_type not in ["nn", "cnn", "cnn_embedding"]:
             raise ValueError(
-                f"Invalid classifier type: {classifier_type}. Must be 'nn', or 'cnn'"
+                f"Invalid classifier type: {classifier_type}. Must be 'nn', 'cnn', or 'cnn_embedding'"
             )
         self._model = None
         self._label_encoder = None
@@ -146,6 +146,12 @@ class FacialModelLoader(BaseModelLoader):
             BiometricConfig.FACIAL_CNN_MODEL_PATH,
             BiometricConfig.FACIAL_CNN_LABEL_ENCODER_PATH,
         )
+    
+    def _get_embedding_paths(self) -> Tuple[Path, Path]:
+        return (
+            BiometricConfig.FACIAL_EMBEDDING_MODEL_PATH,
+            BiometricConfig.FACIAL_EMBEDDING_DATABASE_PATH,
+        )
 
     def _load_cnn_model(self) -> Any:
         models_dir = BiometricConfig.MODELS_DIR
@@ -203,6 +209,12 @@ class FacialModelLoader(BaseModelLoader):
             if not cnn_model_path.exists() or not label_encoder_path.exists():
                 raise ValueError(
                     "Facial CNN models not found. Please train the models first."
+                )
+        elif self.classifier_type == "cnn_embedding":
+            embedding_model_path, embedding_db_path = self._get_embedding_paths()
+            if not embedding_model_path.exists() or not embedding_db_path.exists():
+                raise ValueError(
+                    "Facial embedding model or database not found. Please train/generate them first."
                 )
         else:
             nn_model_path, label_encoder_path = self._get_nn_paths()

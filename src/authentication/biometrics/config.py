@@ -22,5 +22,9 @@ class BiometricConfig:
     FACIAL_NN_LABEL_ENCODER_PATH = FACIAL_CHECKPOINTS_DIR / "nn_label_encoder.pkl"
     FACIAL_CNN_MODEL_PATH = FACIAL_CHECKPOINTS_DIR / "cnn_classifier.keras"
     FACIAL_CNN_LABEL_ENCODER_PATH = FACIAL_CHECKPOINTS_DIR / "cnn_label_encoder.pkl"
+    FACIAL_EMBEDDING_MODEL_PATH = FACIAL_CHECKPOINTS_DIR / "embedding_model.keras"
+    FACIAL_EMBEDDING_DATABASE_PATH = FACIAL_CHECKPOINTS_DIR / "embedding_database.pkl"
     FACIAL_CONFIDENCE_THRESHOLD = 0.75
+    FACIAL_SIMILARITY_THRESHOLD = 0.6  # Cosine similarity threshold for embeddings
     FACIAL_CLASSIFIER_TYPE = os.getenv("FACIAL_CLASSIFIER_TYPE", "nn").lower()
+

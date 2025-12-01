@@ -20,7 +20,8 @@ class FacialValidator(BaseValidator):
         logger.info(f"   └─ Classifier: {classifier_type}")
 
         try:
-            identified_person, confidence = identify_face_from_image(image_path)
+            # Pass expected_name to only check against that specific user
+            identified_person, confidence = identify_face_from_image(image_path, expected_name=expected_name)
             logger.debug(
                 f"   └─ Identification Result: {identified_person} (Confidence: {confidence:.2%})"
             )

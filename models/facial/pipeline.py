@@ -105,9 +105,9 @@ if __name__ == "__main__":
         "--classifier",
         "-c",
         type=str,
-        choices=["nn", "cnn"],
+        choices=["nn", "cnn", "cnn_embedding"],
         default="nn",
-        help="Classifier type to use: nn (Neural Network), or cnn (Convolutional Neural Network). Default: nn",
+        help="Classifier type to use: nn (Neural Network), cnn (CNN Classifier), or cnn_embedding (CNN Embedding with Triplet Loss). Default: nn",
     )
     parser.add_argument(
         "--no-augmentation",
@@ -139,8 +139,14 @@ if __name__ == "__main__":
     strategy = create_classifier_strategy(classifier_type)
     face_identifier = FaceIdentifier(strategy)
 
-    if classifier_type == "cnn":
-        all_images, all_labels = cnn_classifier.load_images_from_directory(DATA_DIR)
+    if classifier_type in ["cnn", "cnn_embedding"]:
+        # For CNN-based classifiers (both standard and embedding)
+        if classifier_type == "cnn":
+            all_images, all_labels = cnn_classifier.load_images_from_directory(DATA_DIR)
+        else:  # cnn_embedding
+            from classifiers.cnn_embedding import load_images_from_directory
+            all_images, all_labels = load_images_from_directory(DATA_DIR)
+        
         indices = np.arange(len(all_images))
         _, test_indices = train_test_split(
             indices, test_size=0.3, random_state=42, stratify=all_labels
@@ -148,11 +154,21 @@ if __name__ == "__main__":
         test_images = all_images[test_indices]
         y_test = all_labels[test_indices]
 
+        # Train with appropriate parameters
+        train_kwargs = {
+            "data_dir": DATA_DIR,
+        }
+        if classifier_type == "cnn":
+            train_kwargs["use_augmentation"] = use_augmentation
+        elif classifier_type == "cnn_embedding":
+            train_kwargs["epochs"] = 100
+            train_kwargs["learning_rate"] = 0.0001
+            train_kwargs["margin"] = 0.3
+        
         face_identifier.train(
             embeddings_train=None,
             labels_train=None,
-            data_dir=DATA_DIR,
-            use_augmentation=use_augmentation,
+            **train_kwargs
         )
 
         y_pred = []
@@ -170,7 +186,7 @@ if __name__ == "__main__":
 
         face_identifier.train(X_train, y_train)
 
-    if classifier_type != "cnn":
+    if classifier_type not in ["cnn", "cnn_embedding"]:
         print("")
         print("─" * 60)
         print("🔍 Identificando personas en conjunto de prueba...")
@@ -193,7 +209,12 @@ if __name__ == "__main__":
     unknown_mask = y_pred == "unknown"
     known_mask = ~unknown_mask
 
-    classifier_name = "Neural Network" if classifier_type == "nn" else "CNN"
+    classifier_names = {
+        "nn": "Neural Network",
+        "cnn": "CNN Classifier",
+        "cnn_embedding": "CNN Embedding (Triplet Loss)"
+    }
+    classifier_name = classifier_names.get(classifier_type, "Unknown")
     print("")
     print("═" * 60)
     print(f"📊 Resultados de Clasificación - {classifier_name}")

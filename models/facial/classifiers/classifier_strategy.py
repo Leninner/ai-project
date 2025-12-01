@@ -73,6 +73,64 @@ class CNNClassifierStrategy(ClassifierStrategy):
         return "CNN"
 
 
+class CNNEmbeddingClassifierStrategy(ClassifierStrategy):
+    """Strategy for CNN-based embedding model trained with triplet loss"""
+    
+    def __init__(self):
+        from . import cnn_embedding
+        
+        self.embedding_module = cnn_embedding
+    
+    def train(
+        self,
+        embeddings_train: np.ndarray = None,
+        labels_train: np.ndarray = None,
+        **kwargs,
+    ) -> Tuple:
+        # """Train the embedding model with triplet loss"""
+        # data_dir = kwargs.get("data_dir", None)
+        # epochs = kwargs.get("epochs", 100)
+        # learning_rate = kwargs.get("learning_rate", 0.0001)
+        # margin = kwargs.get("margin", 0.3)
+        
+        # # Train embedding model with triplet loss
+        # model, history = self.embedding_module.train_embedding_model(
+        #     data_dir=data_dir,
+        #     epochs=epochs,
+        #     learning_rate=learning_rate,
+        #     margin=margin
+        # )
+        
+        # Generate embedding database from already trained model
+        database = self.embedding_module.save_embedding_database(model=None)
+        
+        return None, database
+    
+    def identify_face(
+        self,
+        query_embedding: np.ndarray = None,
+        image_path: str = None,
+        image_array: np.ndarray = None,
+        expected_name: str = None,
+    ) -> Tuple[str, float]:
+        """Identify face using embedding similarity"""
+        if image_path is not None:
+            return self.embedding_module.identify_face_from_image(
+                image_path, expected_name=expected_name
+            )
+        elif image_array is not None:
+            return self.embedding_module.identify_face_from_array(
+                image_array, expected_name=expected_name
+            )
+        else:
+            raise ValueError(
+                "CNN Embedding classifier requires either image_path or image_array"
+            )
+    
+    def get_name(self) -> str:
+        return "CNN Embedding (Triplet Loss)"
+
+
 class FaceIdentifier:
     def __init__(self, classifier_strategy: ClassifierStrategy):
         self.classifier_strategy = classifier_strategy
@@ -104,7 +162,9 @@ def create_classifier_strategy(classifier_type: str) -> ClassifierStrategy:
         return NeuralNetworkClassifierStrategy()
     elif classifier_type_lower == "cnn":
         return CNNClassifierStrategy()
+    elif classifier_type_lower in ["cnn_embedding", "embedding", "triplet"]:
+        return CNNEmbeddingClassifierStrategy()
     else:
         raise ValueError(
-            f"Unknown classifier type: {classifier_type}. Use 'nn', or 'cnn'"
+            f"Unknown classifier type: {classifier_type}. Use 'nn', 'cnn', or 'cnn_embedding'"
         )

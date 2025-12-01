@@ -189,10 +189,10 @@ class LivenessConsumer(AsyncWebsocketConsumer):
                 tmp_path = tmp_file.name
 
             try:
-                # Run CNN identification
+                # Run CNN identification - pass expected username for targeted validation
                 identified_person, confidence = await sync_to_async(
                     self.facial_identifier.identify
-                )(tmp_path)
+                )(tmp_path, expected_name=self.username)
 
                 # Store result
                 matches_claimed = identified_person == self.username

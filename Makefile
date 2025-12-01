@@ -17,6 +17,9 @@ prepare-data: ## Unzip data for models
 train-facial-cnn: ## Train facial CNN model
 	cd models/facial && uv run python pipeline.py -c cnn --no-augmentation
 
+train-facial-cnn-embedding:
+	cd models/facial && uv run python pipeline.py -c cnn_embedding --no-augmentation
+
 train-voice-nn: ## Train voice NN model
 	cd models/voice && uv run python pipeline.py -c nn
 

@@ -43,7 +43,7 @@ def identify_speaker_from_audio(audio_path: str):
     return identifier.identify(audio_path)
 
 
-def identify_face_from_image(image_path: str):
+def identify_face_from_image(image_path: str, expected_name: str = None):
     identifier = _get_facial_identifier()
     current_classifier_type = BiometricConfig.FACIAL_CLASSIFIER_TYPE
 
@@ -51,4 +51,4 @@ def identify_face_from_image(image_path: str):
         _reset_identifiers()
         identifier = _get_facial_identifier()
 
-    return identifier.identify(image_path)
+    return identifier.identify(image_path, expected_name=expected_name)
