@@ -26,9 +26,9 @@ graph TB
     B --> C[VideoProcessor]
     C -->|Extracción| D[Frames PNG]
     C -->|Extracción| E[Audio WAV]
-    D --> F[Facial Embedding Extractor]
+    D --> F[Facial Embedding Extractor/Raw Image]
     E --> G[Voice Embedding Extractor]
-    F -->|FaceNet 512-dim| H[Facial Classifier]
+    F -->|FaceNet 512-dim / Raw Image| H[Facial Classifier]
     G -->|SpeechBrain 192-dim| I[Voice Classifier]
     H -->|Neural Network/CNN| J[Biometric Validator]
     I -->|SVM/NN| J
@@ -67,9 +67,9 @@ sequenceDiagram
         VP->>TS: trigger_async_training()
         TS->>TS: Entrenar modelos (background)
     else Autenticación
-        VP->>FE: extract_embedding(frame)
+        VP->>FE: extract_embedding(frame) / identify_face_from_image(frame)
         VP->>VE: extract_embedding(audio)
-        FE->>BC: identify_face(embedding)
+        FE->>BC: identify_face(embedding/image)
         VE->>BC: identify_speaker(embedding)
         BC->>D: Resultado validación
     end
@@ -79,7 +79,7 @@ sequenceDiagram
 
 ```mermaid
 graph LR
-    A[Embedding Vector] --> B{Classifier Type}
+    A[Embedding Vector/Raw Image] --> B{Classifier Type}
     B -->|Neural Network| C[Neural Network]
     B -->|CNN| D[CNN Classifier]
     C --> E[Label Encoder]
@@ -128,9 +128,9 @@ The `VideoProcessor` component is responsible for extracting biometric data from
 3. Segment the audio into 3-second clips.
 4. Save each segment as an individual WAV file.
 
-### Embedding Extraction
+### Embedding and Image Processing
 
-#### Facial Embeddings (FaceNet)
+#### Facial Embeddings (FaceNet) - For SVM/NN Classifiers
 
 **Model**: InceptionResnetV1 pre-trained on VGGFace2
 
@@ -140,6 +140,14 @@ The `VideoProcessor` component is responsible for extracting biometric data from
   - Face detection with MTCNN.
   - Normalization to 160x160 pixels.
   - Pixel value normalization.
+
+#### Facial Image Processing - For CNN Classifier
+
+The CNN classifier directly processes pre-processed facial images rather than embeddings.
+
+- **Input**: 160x160x3 RGB image (NumPy array).
+- **Preprocessing**: Images are normalized to `[0, 1]` range.
+- **Data Augmentation**: During training, data augmentation (random flips, rotations, zooms, brightness, contrast) is applied to the raw images to improve robustness.
 
 #### Voice Embeddings (SpeechBrain)
 
@@ -152,15 +160,87 @@ The `VideoProcessor` component is responsible for extracting biometric data from
   - Resample to 16kHz if necessary.
   - Amplitude normalization.
 
+### Classifiers
+
+The system implements two types of classifiers for both facial and voice recognition, selectable via configuration.
+
+#### Facial Classifiers
+
+1.  **Neural Network (NN) Classifier**:
+    *   Operates on 512-dim FaceNet embeddings.
+    *   Architecture: Fully-connected layers.
+    *   Trained using `torch`.
+2.  **Convolutional Neural Network (CNN) Classifier**:
+    *   Operates directly on 160x160x3 raw facial images.
+    *   Architecture: Custom CNN with residual blocks, batch normalization, and dropout.
+    *   Trained using `tensorflow.keras`.
+
+#### Voice Classifiers
+
+1.  **SVM Classifier**:
+    *   Operates on 192-dim SpeechBrain embeddings.
+    *   Implemented using `scikit-learn`'s `SVC`.
+2.  **Neural Network (NN) Classifier**:
+    *   Operates on 192-dim SpeechBrain embeddings.
+    *   Architecture: Fully-connected layers.
+    *   Trained using `torch`.
+
+## Training Models
+
+### Facial Training Pipeline
+
+The facial recognition models can be trained using either FaceNet embeddings with a traditional classifier (SVM or NN) or directly using a CNN on raw images.
+
+#### Embedding-based Training (for SVM/NN classifiers)
+
+1.  **Extract FaceNet Embeddings**: For each image in `models/facial/data/{username}/*.png`, a 512-dim embedding is extracted using `facenet-pytorch`'s `InceptionResnetV1` model.
+2.  **Split Data**: Embeddings and corresponding labels are split into training and testing sets (e.g., 70/30 split).
+3.  **Train Classifier**:
+    *   **SVM**: An `SVC` model from `scikit-learn` is trained on the embeddings.
+    *   **NN**: A fully-connected neural network is trained on the embeddings using `torch`.
+4.  **Save Model**: The trained classifier (`.joblib` for SVM, `.pth` for NN) and its `LabelEncoder` are saved in `models/facial/checkpoints/`.
+
+#### Image-based Training (for CNN classifier)
+
+1.  **Load Raw Images**: Images from `models/facial/data/{username}/*.png` are loaded directly. Each image is expected to be a 160x160x3 RGB NumPy array.
+2.  **Data Augmentation**: A `tensorflow.keras.Sequential` model applies various augmentations (flips, rotations, zooms, brightness, contrast) during training to the raw images.
+3.  **Split Data**: Images and labels are split into training and validation sets.
+4.  **Build and Train CNN**: A custom CNN model (`build_cnn_model` in `cnn_classifier.py`) is built using `tensorflow.keras` and trained on the raw image data, leveraging mixed precision training (FP16) if available. The training incorporates an early stopping mechanism and a Cosine Decay learning rate schedule.
+5.  **Save Model**: The trained CNN model (`.keras` format) and its `LabelEncoder` are saved in `models/facial/checkpoints/`.
+
+### Voice Training Pipeline
+
+1.  **Extract SpeechBrain Embeddings**: For each audio segment in `models/voice/data/{username}/*.wav`, a 192-dim embedding is extracted using `speechbrain`'s `ECAPA-TDNN` model.
+2.  **Split Data**: Embeddings and corresponding labels are split into training and testing sets.
+3.  **Train Classifier**:
+    *   **SVM**: An `SVC` model from `scikit-learn` is trained on the embeddings.
+    *   **NN**: A fully-connected neural network is trained on the embeddings using `torch`.
+4.  **Save Model**: The trained classifier (`.joblib` for SVM, `.pth` for NN) and its `LabelEncoder` are saved in `models/voice/checkpoints/`.
+
+### Manual Training Commands
+
+You can manually train the models using `Makefile` commands:
+
+```bash
+# Train facial models
+make train-facial-svm    # Train with SVM on FaceNet embeddings
+make train-facial-nn     # Train with Neural Network on FaceNet embeddings
+make train-facial-cnn    # Train with CNN directly on images
+
+# Train voice models
+make train-voice-svm     # Train with SVM on SpeechBrain embeddings
+make train-voice-nn     # Train with Neural Network on SpeechBrain embeddings
+```
+
 ## Technologies Used
 
 - **Backend**: Django, Django Channels
 - **Machine Learning/Deep Learning**:
-  - `tensorflow`: For building and training deep learning models.
-  - `torch`: For building and training deep learning models.
-  - `scikit-learn`: For machine learning algorithms.
-  - `facenet-pytorch`: For facial recognition.
-  - `speechbrain`: For voice recognition.
+  - `tensorflow`: For building and training deep learning models (specifically CNN).
+  - `torch`: For building and training deep learning models (FaceNet, SpeechBrain, NN classifiers).
+  - `scikit-learn`: For machine learning algorithms (SVM classifiers).
+  - `facenet-pytorch`: For facial embedding extraction.
+  - `speechbrain`: For voice embedding extraction.
 - **Database**: PostgreSQL
 - **Other**: Docker, FFmpeg
 
@@ -195,7 +275,7 @@ The `VideoProcessor` component is responsible for extracting biometric data from
    ```
 7. **(Optional) Train initial models**:
     ```bash
-    make train-facial-nn
+    make train-facial-cnn
     make train-voice-nn
     ```
 
@@ -228,5 +308,5 @@ The `VideoProcessor` component is responsible for extracting biometric data from
 
 ---
 
-**Document Version**: 1.2  
+**Document Version**: 1.3
 **Last Updated**: 2024

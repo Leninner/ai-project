@@ -437,6 +437,8 @@ def identify_face_from_image(image_path):
         face_array = np.expand_dims(face_array, axis=0)
 
         predictions = model.predict(face_array, verbose=0)
+        # log probabilities in a good wat
+        print(f"---Probabilities: {predictions}")
         probabilities = predictions[0]
 
         predicted_index = np.argmax(probabilities)
